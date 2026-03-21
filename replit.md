@@ -98,8 +98,8 @@ Geography quiz game built with React + Vite. Purely frontend — no backend API 
 - **Stack**: React 19, Vite 7, TypeScript
 - **Theme**: Terracotta (#E07A5F) + papyrus (#FDF6E3) palette, Fredoka + Poppins fonts
 - **Features**: 4 continents (Africa, Asia, Europe, Americas) x 4 categories (Countries & Capitals, Presidents, Flags, Currencies) x 3 difficulty levels
-- **Game flow**: Home -> Select Continent -> Select Category -> Quiz (8 questions + 2 facts per level) -> Result
-- **Scoring**: 5/8 correct answers to advance to next level. Facts are informational only, no score impact
+- **Game flow**: Home -> Select Continent -> Select Category -> Quiz (10 items: 8 questions + 2 facts per level) -> Result
+- **Scoring**: 10-item queue per level (8 questions + 2 fact cards). All items count toward score. Pass threshold: 5/10 to advance
 - **Flags category**: Shows flag emojis with "Which country does this flag belong to?" questions
 - **Data**: All question data in `src/data/` (africa.ts, asia.ts, europe.ts, americas.ts, facts.ts)
 - **Branding**: "Developed by Faiza Fadipe, 2025" in footer
