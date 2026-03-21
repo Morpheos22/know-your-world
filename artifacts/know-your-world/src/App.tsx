@@ -200,7 +200,7 @@ function GameScreen({
         </button>
         <h2>Level {state.level}</h2>
         <div className="score-box">
-          {state.score}/8
+          {state.score}/10
         </div>
       </div>
       <div className="screen">
@@ -288,7 +288,7 @@ function ResultModal({
         >
           {passed ? "Congratulations!" : "Study Hard!"}
         </h2>
-        <p>You scored {state.score}/8</p>
+        <p>You scored {state.score}/10</p>
 
         {passed && state.level === 3 && (
           <div className="fact-reveal">
@@ -401,12 +401,13 @@ function App() {
 
   const handleFactContinue = useCallback(() => {
     setGameState((prev) => {
+      const newScore = prev.score + 1;
       const nextIndex = prev.qIndex + 1;
       if (nextIndex >= prev.queue.length) {
         setTimeout(() => setShowResult(true), 100);
-        return { ...prev, qIndex: nextIndex };
+        return { ...prev, score: newScore, qIndex: nextIndex };
       }
-      return { ...prev, qIndex: nextIndex };
+      return { ...prev, score: newScore, qIndex: nextIndex };
     });
   }, []);
 

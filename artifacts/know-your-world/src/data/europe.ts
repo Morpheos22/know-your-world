@@ -50,7 +50,7 @@ export const europePresidents: Question[] = [
   { q: "President of Serbia?", a: "Aleksandar Vucic", opts: ["Aleksandar Vucic", "Ana Brnabic", "Tomislav Nikolic", "Boris Tadic"], lvl: 3 },
   { q: "President of Czech Republic?", a: "Petr Pavel", opts: ["Milos Zeman", "Petr Pavel", "Vaclav Klaus", "Andrej Babis"], lvl: 3 },
   { q: "President of Bulgaria?", a: "Rumen Radev", opts: ["Rumen Radev", "Boyko Borisov", "Rosen Plevneliev", "Georgi Parvanov"], lvl: 3 },
-  { q: "Prime Minister of Iceland (2025)?", a: "Halla Tomasdottir", opts: ["Katrin Jakobsdottir", "Halla Tomasdottir", "Bjarni Benediktsson", "Sigmundur David"], lvl: 3 },
+  { q: "President of Iceland?", a: "Halla Tomasdottir", opts: ["Gudni Johannesson", "Halla Tomasdottir", "Vigdis Finnbogadottir", "Olafur Ragnar Grimsson"], lvl: 3 },
   { q: "President of Slovakia?", a: "Peter Pellegrini", opts: ["Zuzana Caputova", "Peter Pellegrini", "Robert Fico", "Andrej Kiska"], lvl: 3 },
 ];
 
