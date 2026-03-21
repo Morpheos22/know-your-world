@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Know Your World"
+version = "1.0.0"
+id = "artifacts/know-your-world"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18208
+
+[services.development]
+run = "pnpm --filter @workspace/know-your-world run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/know-your-world", "run", "build" ]
+publicDir = "artifacts/know-your-world/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18208"
+BASE_PATH = "/"
