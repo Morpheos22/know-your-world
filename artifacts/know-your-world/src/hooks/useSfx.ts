@@ -375,13 +375,22 @@ const SOUND_MAP: Record<SoundName, (arg?: number) => void> = {
 export function useSfx() {
   // Default: NOT muted (kids expect sound)
   const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
   const streakRef = useRef(0);
+
+  // Keep the ref in sync with state so the play callback can be stable
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
 
   // Hydrate mute state from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem(MUTE_KEY);
-      if (stored === "true") setMuted(true);
+      if (stored === "true") {
+        setMuted(true);
+        mutedRef.current = true;
+      }
     } catch {
       // ignore
     }
@@ -396,27 +405,25 @@ export function useSfx() {
     }
   }, [muted]);
 
-  const play = useCallback(
-    (sound: SoundName, arg?: number) => {
-      if (muted) return;
-      // Streak tracking: reset on non-streak sounds, increment on correct
-      if (sound === "correct") {
-        streakRef.current += 1;
-        // If we hit 3+, play streak chime AFTER the correct sound
-        if (streakRef.current >= 3) {
-          SOUND_MAP.correct();
-          setTimeout(() => {
-            if (!muted) playStreak(streakRef.current);
-          }, 220);
-          return;
-        }
-      } else if (sound !== "streak") {
-        streakRef.current = 0;
+  // Stable play callback — reads muted state from ref, not closure
+  const play = useCallback((sound: SoundName, arg?: number) => {
+    if (mutedRef.current) return;
+    // Streak tracking: reset on non-streak sounds, increment on correct
+    if (sound === "correct") {
+      streakRef.current += 1;
+      // If we hit 3+, play streak chime AFTER the correct sound
+      if (streakRef.current >= 3) {
+        SOUND_MAP.correct();
+        setTimeout(() => {
+          if (!mutedRef.current) playStreak(streakRef.current);
+        }, 220);
+        return;
       }
-      SOUND_MAP[sound](arg);
-    },
-    [muted],
-  );
+    } else if (sound !== "streak") {
+      streakRef.current = 0;
+    }
+    SOUND_MAP[sound](arg);
+  }, []);
 
   const toggleMute = useCallback(() => setMuted((m) => !m), []);
 

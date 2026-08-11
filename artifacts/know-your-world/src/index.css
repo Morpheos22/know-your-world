@@ -643,3 +643,346 @@ body {
     font-size: 0.6rem;
   }
 }
+
+/* ============================================================================
+   NEW: Home screen — progress pills + secondary button
+   ============================================================================ */
+.home-progress {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.progress-pill {
+  background: rgba(61, 64, 91, 0.1);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-family: "Poppins", sans-serif;
+  font-weight: 600;
+}
+.progress-pill-done {
+  background: rgba(129, 178, 154, 0.25);
+  color: var(--success);
+}
+.menu-btn-secondary {
+  background: var(--highlight);
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+.menu-btn-secondary:active {
+  transform: scale(0.97);
+}
+
+/* ============================================================================
+   NEW: Tile progress indicators (continent/category selection)
+   ============================================================================ */
+.tile-progress {
+  font-size: 0.7rem;
+  font-family: "Poppins", sans-serif;
+  color: var(--accent);
+  margin-top: 4px;
+  opacity: 0.8;
+}
+.tile-completed {
+  color: var(--success);
+  font-weight: 700;
+  margin-left: 4px;
+}
+.tile-best {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--primary);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.tile-progress-new {
+  color: var(--primary);
+  font-weight: 700;
+  font-style: italic;
+}
+
+/* ============================================================================
+   NEW: Level / Difficulty selection screen
+   ============================================================================ */
+.level-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.level-card {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  border: 3px solid var(--accent);
+  border-radius: 16px;
+  background: var(--bg-color);
+  cursor: pointer;
+  font-family: "Fredoka", sans-serif;
+  text-align: left;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.level-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+.level-card:active:not(:disabled) {
+  transform: translateY(0);
+}
+.level-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background: #f0f0f0;
+}
+.level-card-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.level-card-label {
+  font-size: 1.3rem;
+  color: var(--text-dark);
+  font-weight: 600;
+}
+.level-card-best {
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin-top: 4px;
+  font-family: "Poppins", sans-serif;
+}
+.level-card-passed {
+  color: var(--success);
+  font-weight: 700;
+}
+.level-card-new {
+  color: var(--primary);
+  font-style: italic;
+}
+.level-card-locked-msg {
+  font-size: 0.75rem;
+  color: #999;
+  margin-top: 4px;
+  font-family: "Poppins", sans-serif;
+}
+
+/* ============================================================================
+   NEW: Result modal — leaderboard preview + top 5 + personal best
+   ============================================================================ */
+.result-personal-best {
+  background: linear-gradient(135deg, #ffd700, #ffb347);
+  color: #4a3500;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-family: "Fredoka", sans-serif;
+  margin: 10px 0;
+  font-size: 0.95rem;
+}
+.result-leaderboard-preview {
+  background: var(--highlight);
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-family: "Poppins", sans-serif;
+  color: var(--accent);
+  margin: 8px 0;
+  line-height: 1.4;
+}
+.result-leaderboard-preview strong {
+  color: var(--primary);
+  font-weight: 700;
+}
+.result-leaderboard-error {
+  background: rgba(230, 57, 70, 0.1);
+  color: var(--error);
+}
+.result-top5 {
+  margin: 12px 0;
+  background: var(--bg-color);
+  border-radius: 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.result-top5-title {
+  font-size: 0.75rem;
+  font-family: "Poppins", sans-serif;
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.result-top5-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  font-family: "Poppins", sans-serif;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+.result-top5-row:last-child {
+  border-bottom: none;
+}
+.result-top5-row.result-top5-me {
+  background: rgba(224, 122, 95, 0.15);
+  margin: 0 -12px;
+  padding: 4px 12px;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+.result-top5-rank {
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 30px;
+}
+.result-top5-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-top5-score {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* ============================================================================
+   NEW: Standalone Leaderboard screen
+   ============================================================================ */
+.lb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 12px 16px;
+  background: var(--highlight);
+  border-radius: 12px;
+  margin: 0 12px 12px;
+}
+.lb-filters label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  font-family: "Poppins", sans-serif;
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  gap: 4px;
+}
+.lb-filters select {
+  padding: 6px 10px;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  background: var(--bg-color);
+  color: var(--text-dark);
+  font-family: "Poppins", sans-serif;
+  font-size: 0.85rem;
+  cursor: pointer;
+  outline: none;
+}
+.lb-filters select:focus {
+  border-color: var(--accent);
+}
+.lb-loading,
+.lb-empty,
+.lb-error {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--accent);
+  font-family: "Poppins", sans-serif;
+}
+.lb-error {
+  color: var(--error);
+}
+.lb-meta {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-family: "Poppins", sans-serif;
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+.lb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-color);
+  border-radius: 10px;
+  font-family: "Poppins", sans-serif;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.lb-rank {
+  font-weight: 700;
+  min-width: 36px;
+  text-align: center;
+}
+.lb-rank-top {
+  color: #d4a017;
+  font-size: 1.05rem;
+}
+.lb-rank-normal {
+  color: var(--accent);
+}
+.lb-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-score {
+  font-weight: 700;
+  color: var(--primary);
+}
+.lb-time {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+/* ============================================================================
+   RESPONSIVE: tighten leaderboard on narrow screens
+   ============================================================================ */
+@media (max-width: 380px) {
+  .lb-filters {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .lb-filters label {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lb-filters select {
+    flex: 1;
+  }
+  .lb-row {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+}
