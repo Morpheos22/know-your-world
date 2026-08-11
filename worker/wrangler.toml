@@ -1,0 +1,21 @@
+name = "know-your-world-api"
+main = "src/index.ts"
+compatibility_date = "2024-10-11"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 database binding — created via `pnpm --filter @know-your-world/api run db:create`
+# After creation, wrangler will print a database_id; paste it below.
+[[d1_databases]]
+binding = "DB"
+database_name = "know-your-world-db"
+database_id = "REPLACE_ME_AFTER_DB_CREATE"
+
+# Observability
+[observability]
+enabled = true
+
+# Vars (non-secret)
+[vars]
+CORS_ORIGIN = "https://know-your-world.vercel.app"
+LEADERBOARD_LIMIT = "10"
+MAX_NAME_LENGTH = "20"
