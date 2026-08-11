@@ -13,7 +13,7 @@ import { useSfx, type SoundName } from "./hooks/useSfx";
 import { useScores } from "./hooks/useScores";
 import { useProgress } from "./hooks/useProgress";
 
-const PASS_THRESHOLD = 5; // out of 10 (8 questions + 2 facts)
+const PASS_THRESHOLD = 4; // out of 8 questions (50% — facts don't count)
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -628,20 +628,17 @@ function GameScreen({
   const correctAnswer = item.data?.a;
 
   // ---- Relational HUD computations ----
-  // BUGFIX: maxPossibleScore now accounts for whether current question was answered
-  const totalQuestions = state.queue.length;
-  const currentQuestionNum = state.qIndex + 1;
-  const questionsAfterCurrent = Math.max(0, totalQuestions - state.qIndex - 1);
-  // If the current question is answered (disabled), it's already counted in state.score.
-  // If not, the current question can still add 1 to the score.
-  const currentQuestionPotential = disabled ? 0 : 1;
-  const maxPossibleScore =
-    state.score + currentQuestionPotential + questionsAfterCurrent;
+  // totalQuestions excludes fact cards (set at loadLevel time).
+  // questionsAnswered tracks only real questions answered (correct or wrong).
+  const totalQuestions = state.totalQuestions;
+  const currentQuestionNum = state.questionsAnswered + (disabled ? 0 : 1);
+  // Questions remaining = total - answered - (1 if currently on an unanswered question)
+  const questionsRemaining =
+    totalQuestions - state.questionsAnswered - (disabled ? 0 : 1);
+  const maxPossibleScore = state.score + Math.max(0, questionsRemaining);
   const levelMeta = LEVEL_META[state.level] ?? LEVEL_META[1];
   const questionProgressPct =
-    totalQuestions > 0
-      ? ((state.qIndex + (disabled ? 1 : 0)) / totalQuestions) * 100
-      : 0;
+    totalQuestions > 0 ? (state.questionsAnswered / totalQuestions) * 100 : 0;
   const scoreProgressPct =
     totalQuestions > 0 ? (state.score / totalQuestions) * 100 : 0;
   const maxPossiblePct =
@@ -689,7 +686,13 @@ function GameScreen({
         <div className="hud-row">
           <div className="hud-cell hud-cell-bl">
             <div className="hud-label">
-              Question {currentQuestionNum} of {totalQuestions}
+              {item.type === "fact" ? (
+                <>{"\uD83D\uDCA1"} Fun fact!</>
+              ) : (
+                <>
+                  Question {currentQuestionNum} of {totalQuestions}
+                </>
+              )}
             </div>
             <div className="hud-bar">
               <div
@@ -713,7 +716,9 @@ function GameScreen({
               />
             </div>
             <div className="hud-sublabel">
-              Can still reach {maxPossibleScore}/{totalQuestions}
+              {item.type === "fact"
+                ? "Facts don't affect your score"
+                : `Can still reach ${maxPossibleScore}/${totalQuestions}`}
             </div>
           </div>
         </div>
@@ -840,7 +845,7 @@ function ResultModal({
   onShowLeaderboard: () => void;
   play: (s: SoundName) => void;
 }) {
-  const total = state.queue.length;
+  const total = state.totalQuestions; // excludes fact cards
   const passed = state.score >= PASS_THRESHOLD;
   const canGoNextLevel = passed && state.level < 3;
 
@@ -1150,6 +1155,8 @@ function App() {
     queue: [],
     qIndex: 0,
     score: 0,
+    questionsAnswered: 0,
+    totalQuestions: 0,
     startedAt: 0,
     endedAt: null,
   });
@@ -1204,6 +1211,8 @@ function App() {
         queue: shuffle(queue),
         qIndex: 0,
         score: 0,
+        questionsAnswered: 0,
+        totalQuestions: questions.length, // excludes fact cards
         startedAt: Date.now(),
         endedAt: null,
       });
@@ -1231,37 +1240,45 @@ function App() {
 
   const handleAnswer = useCallback((selected: string, correct: string) => {
     setGameState((prev) => {
-      const newScore = selected === correct ? prev.score + 1 : prev.score;
+      const isCorrect = selected === correct;
+      const newScore = isCorrect ? prev.score + 1 : prev.score;
+      const newQuestionsAnswered = prev.questionsAnswered + 1;
       const nextIndex = prev.qIndex + 1;
       if (nextIndex >= prev.queue.length) {
         const endedState = {
           ...prev,
           score: newScore,
+          questionsAnswered: newQuestionsAnswered,
           qIndex: nextIndex,
           endedAt: Date.now(),
         };
         setTimeout(() => setShowResult(true), 100);
         return endedState;
       }
-      return { ...prev, score: newScore, qIndex: nextIndex };
+      return {
+        ...prev,
+        score: newScore,
+        questionsAnswered: newQuestionsAnswered,
+        qIndex: nextIndex,
+      };
     });
   }, []);
 
+  // Fact cards ("Did you know?") are random fun facts — they do NOT count
+  // toward the score or the question count. They just advance the queue.
   const handleFactContinue = useCallback(() => {
     setGameState((prev) => {
-      const newScore = prev.score + 1;
       const nextIndex = prev.qIndex + 1;
       if (nextIndex >= prev.queue.length) {
         const endedState = {
           ...prev,
-          score: newScore,
           qIndex: nextIndex,
           endedAt: Date.now(),
         };
         setTimeout(() => setShowResult(true), 100);
         return endedState;
       }
-      return { ...prev, score: newScore, qIndex: nextIndex };
+      return { ...prev, qIndex: nextIndex };
     });
   }, []);
 
@@ -1292,7 +1309,7 @@ function App() {
     )
       return;
 
-    const total = gameState.queue.length;
+    const total = gameState.totalQuestions; // excludes fact cards
     const passed = gameState.score >= PASS_THRESHOLD;
     const timeMs = gameState.endedAt - gameState.startedAt;
 
