@@ -1,8 +1,28 @@
 import type { Question, Continent, Category } from "./types";
-import { africaCountries, africaPresidents, africaFlags, africaCurrencies } from "./africa";
-import { asiaCountries, asiaPresidents, asiaFlags, asiaCurrencies } from "./asia";
-import { europeCountries, europePresidents, europeFlags, europeCurrencies } from "./europe";
-import { americasCountries, americasPresidents, americasFlags, americasCurrencies } from "./americas";
+import {
+  africaCountries,
+  africaPresidents,
+  africaFlags,
+  africaCurrencies,
+} from "./africa";
+import {
+  asiaCountries,
+  asiaPresidents,
+  asiaFlags,
+  asiaCurrencies,
+} from "./asia";
+import {
+  europeCountries,
+  europePresidents,
+  europeFlags,
+  europeCurrencies,
+} from "./europe";
+import {
+  americasCountries,
+  americasPresidents,
+  americasFlags,
+  americasCurrencies,
+} from "./americas";
 
 const DB: Record<Continent, Record<Category, Question[]>> = {
   Africa: {
@@ -34,7 +54,7 @@ const DB: Record<Continent, Record<Category, Question[]>> = {
 export function getQuestionsForLevel(
   continent: Continent,
   category: Category,
-  level: number
+  level: number,
 ): Question[] {
   const items = DB[continent][category].filter((i) => i.lvl === level);
   return items.slice(0, 8);

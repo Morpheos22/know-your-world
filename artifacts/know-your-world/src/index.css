@@ -1,14 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;600&family=Poppins:wght@300;400;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;600&family=Poppins:wght@300;400;600&display=swap");
 
 :root {
-  --bg-color: #FDF6E3;
-  --primary: #E07A5F;
-  --primary-dark: #C45A42;
-  --accent: #3D405B;
-  --highlight: #F4F1DE;
-  --success: #81B29A;
-  --error: #E63946;
-  --text-dark: #2F2F2F;
+  --bg-color: #fdf6e3;
+  --primary: #e07a5f;
+  --primary-dark: #c45a42;
+  --accent: #3d405b;
+  --highlight: #f4f1de;
+  --success: #81b29a;
+  --error: #e63946;
+  --text-dark: #2f2f2f;
   --card-shadow: 0 8px 24px rgba(224, 122, 95, 0.2);
 }
 
@@ -21,7 +21,7 @@
 }
 
 body {
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
   background-color: var(--bg-color);
   color: var(--text-dark);
   min-height: 100vh;
@@ -86,7 +86,7 @@ body {
 }
 
 .header h2 {
-  font-family: 'Fredoka', sans-serif;
+  font-family: "Fredoka", sans-serif;
   font-size: 1.2rem;
 }
 
@@ -121,7 +121,8 @@ body {
   background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe);
   border-radius: 50%;
   margin: 30px auto;
-  box-shadow: inset -20px -20px 50px rgba(0, 0, 0, 0.3),
+  box-shadow:
+    inset -20px -20px 50px rgba(0, 0, 0, 0.3),
     0 20px 50px rgba(0, 0, 0, 0.2);
   position: relative;
   cursor: pointer;
@@ -135,33 +136,53 @@ body {
 }
 
 .globe-container::after {
-  content: '\01F30D';
+  content: "\01F30D";
   position: absolute;
   font-size: 160px;
   animation: spin 10s linear infinite;
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-30px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-30px);
+  }
 }
 
 @keyframes shrink {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(0.6); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.6);
+  }
 }
 
-.globe-spin { animation: spin 2s linear infinite !important; }
-.globe-bounce { animation: bounce 0.6s ease infinite !important; }
-.globe-shrink { animation: shrink 0.6s ease !important; }
+.globe-spin {
+  animation: spin 2s linear infinite !important;
+}
+.globe-bounce {
+  animation: bounce 0.6s ease infinite !important;
+}
+.globe-shrink {
+  animation: shrink 0.6s ease !important;
+}
 
 .title-text {
-  font-family: 'Fredoka', sans-serif;
+  font-family: "Fredoka", sans-serif;
   font-size: 2.5rem;
   color: var(--primary);
   margin-bottom: 5px;
@@ -183,7 +204,7 @@ body {
   box-shadow: 0 10px 20px rgba(224, 122, 95, 0.4);
   cursor: pointer;
   transition: transform 0.2s;
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
 }
 
 .menu-btn:active {
@@ -246,8 +267,8 @@ body {
 }
 
 .question-card.fact-card {
-  background: #FFF8E1;
-  border-bottom-color: #FFC107;
+  background: #fff8e1;
+  border-bottom-color: #ffc107;
 }
 
 .q-text {
@@ -265,7 +286,7 @@ body {
 
 .opt-btn {
   background: white;
-  border: 2px solid #EEE;
+  border: 2px solid #eee;
   padding: 15px;
   border-radius: 12px;
   font-size: 1rem;
@@ -274,7 +295,7 @@ body {
   transition: 0.2s;
   position: relative;
   cursor: pointer;
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
   width: 100%;
 }
 
@@ -325,13 +346,23 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes popUp {
-  from { transform: scale(0.8); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .confetti {
@@ -344,7 +375,9 @@ body {
 }
 
 @keyframes fall {
-  to { transform: translateY(100vh) rotate(720deg); }
+  to {
+    transform: translateY(100vh) rotate(720deg);
+  }
 }
 
 .footer {
@@ -384,7 +417,7 @@ body {
   color: #888;
   text-decoration: underline;
   cursor: pointer;
-  font-family: 'Poppins', sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 0.9rem;
 }
 

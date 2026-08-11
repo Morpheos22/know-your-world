@@ -1,5 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { Screen, Continent, Category, GameState, QueueItem } from "./data/types";
+import type {
+  Screen,
+  Continent,
+  Category,
+  GameState,
+  QueueItem,
+} from "./data/types";
 import { getQuestionsForLevel } from "./data";
 import { FACTS } from "./data/facts";
 
@@ -114,8 +120,16 @@ function ContinentScreen({
 }
 
 const CATEGORIES: { name: Category; icon: string; label: string }[] = [
-  { name: "Countries", icon: "\uD83D\uDDFA\uFE0F", label: "Countries & Capitals" },
-  { name: "Presidents", icon: "\uD83D\uDC68\u200D\u2696\uFE0F", label: "Presidents / Leaders" },
+  {
+    name: "Countries",
+    icon: "\uD83D\uDDFA\uFE0F",
+    label: "Countries & Capitals",
+  },
+  {
+    name: "Presidents",
+    icon: "\uD83D\uDC68\u200D\u2696\uFE0F",
+    label: "Presidents / Leaders",
+  },
   { name: "Flags", icon: "\uD83C\uDFF3\uFE0F", label: "Flags" },
   { name: "Currencies", icon: "\uD83D\uDCB0", label: "Currencies" },
 ];
@@ -139,12 +153,22 @@ function CategoryScreen({
         <div style={{ width: 24 }} />
       </div>
       <div className="screen">
-        <div style={{ padding: "20px 0", textAlign: "center", color: "var(--primary-dark)" }}>
+        <div
+          style={{
+            padding: "20px 0",
+            textAlign: "center",
+            color: "var(--primary-dark)",
+          }}
+        >
           <h3>Select Category</h3>
         </div>
         <div className="grid">
           {CATEGORIES.map((cat) => (
-            <div className="tile" key={cat.name} onClick={() => onSelect(cat.name)}>
+            <div
+              className="tile"
+              key={cat.name}
+              onClick={() => onSelect(cat.name)}
+            >
               <span className="tile-icon">{cat.icon}</span>
               <h3>{cat.label}</h3>
             </div>
@@ -199,14 +223,14 @@ function GameScreen({
           {"\u2716\uFE0F"}
         </button>
         <h2>Level {state.level}</h2>
-        <div className="score-box">
-          {state.score}/10
-        </div>
+        <div className="score-box">{state.score}/10</div>
       </div>
       <div className="screen">
         <div style={{ padding: "10px 0" }}>
           <div className="level-badge">LEVEL {state.level}</div>
-          <div className={`question-card${item.type === "fact" ? " fact-card" : ""}`}>
+          <div
+            className={`question-card${item.type === "fact" ? " fact-card" : ""}`}
+          >
             {item.type === "fact" ? (
               <>
                 <div className="fact-label">{"\uD83D\uDCA1"} DID YOU KNOW?</div>
@@ -307,8 +331,8 @@ function ResultModal({
           {!passed
             ? "Try Level Again"
             : state.level === 3
-            ? "Replay Category"
-            : `Go to Level ${state.level + 1}`}
+              ? "Replay Category"
+              : `Go to Level ${state.level + 1}`}
         </button>
         <button className="modal-home-btn" onClick={onHome}>
           Back to Menu
@@ -337,7 +361,8 @@ function App() {
       Africa: "radial-gradient(circle at bottom, #D2691E 0%, transparent 70%)",
       Asia: "radial-gradient(circle at bottom, #DC143C 0%, transparent 70%)",
       Europe: "radial-gradient(circle at bottom, #4169E1 0%, transparent 70%)",
-      Americas: "radial-gradient(circle at bottom, #228B22 0%, transparent 70%)",
+      Americas:
+        "radial-gradient(circle at bottom, #228B22 0%, transparent 70%)",
     };
     setBgGradient(gradients[c]);
     setScreen("categories");
@@ -373,7 +398,7 @@ function App() {
       setShowResult(false);
       setScreen("game");
     },
-    []
+    [],
   );
 
   const startGame = useCallback(
@@ -381,23 +406,20 @@ function App() {
       if (!gameState.continent) return;
       loadLevel(gameState.continent, category, 1);
     },
-    [gameState.continent, loadLevel]
+    [gameState.continent, loadLevel],
   );
 
-  const handleAnswer = useCallback(
-    (selected: string, correct: string) => {
-      setGameState((prev) => {
-        const newScore = selected === correct ? prev.score + 1 : prev.score;
-        const nextIndex = prev.qIndex + 1;
-        if (nextIndex >= prev.queue.length) {
-          setTimeout(() => setShowResult(true), 100);
-          return { ...prev, score: newScore, qIndex: nextIndex };
-        }
+  const handleAnswer = useCallback((selected: string, correct: string) => {
+    setGameState((prev) => {
+      const newScore = selected === correct ? prev.score + 1 : prev.score;
+      const nextIndex = prev.qIndex + 1;
+      if (nextIndex >= prev.queue.length) {
+        setTimeout(() => setShowResult(true), 100);
         return { ...prev, score: newScore, qIndex: nextIndex };
-      });
-    },
-    []
-  );
+      }
+      return { ...prev, score: newScore, qIndex: nextIndex };
+    });
+  }, []);
 
   const handleFactContinue = useCallback(() => {
     setGameState((prev) => {
@@ -459,7 +481,7 @@ function App() {
               loadLevel(
                 gameState.continent,
                 gameState.category,
-                gameState.level + 1
+                gameState.level + 1,
               );
             }
           }}
@@ -468,7 +490,7 @@ function App() {
               loadLevel(
                 gameState.continent,
                 gameState.category,
-                gameState.level
+                gameState.level,
               );
             }
           }}

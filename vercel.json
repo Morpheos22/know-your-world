@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm --filter @workspace/know-your-world run build",
+  "outputDirectory": "artifacts/know-your-world/dist/public",
+  "framework": "vite",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "github": {
+    "silent": true
+  }
+}
