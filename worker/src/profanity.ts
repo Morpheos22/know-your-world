@@ -16,16 +16,48 @@
 // Each entry is matched as a substring after normalization.
 const BLOCKLIST: readonly string[] = [
   // Slurs and strong profanity
-  "fuck", "shit", "bitch", "bastard", "cunt", "dick", "pussy", "asshole",
-  "cock", "dick", "prick", "wank", "slut", "whore",
+  "fuck",
+  "shit",
+  "bitch",
+  "bastard",
+  "cunt",
+  "dick",
+  "pussy",
+  "asshole",
+  "cock",
+  "dick",
+  "prick",
+  "wank",
+  "slut",
+  "whore",
   // Hate terms
-  "nigger", "nigga", "faggot", "fag", "retard", "retarded", "tranny",
+  "nigger",
+  "nigga",
+  "faggot",
+  "fag",
+  "retard",
+  "retarded",
+  "tranny",
   // Milder but still inappropriate for K12 leaderboards
-  "damn", "crap", "piss", "hell", "arse",
+  "damn",
+  "crap",
+  "piss",
+  "hell",
+  "arse",
   // Drugs / substances (for K12 sensitivity)
-  "weed", "cocaine", "heroin", "meth", "crack",
+  "weed",
+  "cocaine",
+  "heroin",
+  "meth",
+  "crack",
   // Common substitutions that kids try
-  "fuk", "shyt", "bich", "basturd", "dik", "pusy", "ashole",
+  "fuk",
+  "shyt",
+  "bich",
+  "basturd",
+  "dik",
+  "pusy",
+  "ashole",
 ];
 
 /**
@@ -33,26 +65,28 @@ const BLOCKLIST: readonly string[] = [
  * Strips diacritics, lowercases, replaces leetspeak, collapses repeats.
  */
 function normalize(input: string): string {
-  return input
-    .toLowerCase()
-    // Strip diacritics: café -> cafe
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    // Leetspeak substitutions
-    .replace(/@/g, "a")
-    .replace(/\$/g, "s")
-    .replace(/0/g, "o")
-    .replace(/1/g, "i")
-    .replace(/3/g, "e")
-    .replace(/4/g, "a")
-    .replace(/5/g, "s")
-    .replace(/7/g, "t")
-    .replace(/8/g, "b")
-    .replace(/9/g, "g")
-    // Strip non-alphanumeric (spaces, punctuation, symbols, emoji)
-    .replace(/[^a-z]/g, "")
-    // Collapse repeated chars: "shiiit" -> "shit"
-    .replace(/(.)\1{2,}/g, "$1$1");
+  return (
+    input
+      .toLowerCase()
+      // Strip diacritics: café -> cafe
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      // Leetspeak substitutions
+      .replace(/@/g, "a")
+      .replace(/\$/g, "s")
+      .replace(/0/g, "o")
+      .replace(/1/g, "i")
+      .replace(/3/g, "e")
+      .replace(/4/g, "a")
+      .replace(/5/g, "s")
+      .replace(/7/g, "t")
+      .replace(/8/g, "b")
+      .replace(/9/g, "g")
+      // Strip non-alphanumeric (spaces, punctuation, symbols, emoji)
+      .replace(/[^a-z]/g, "")
+      // Collapse repeated chars: "shiiit" -> "shit"
+      .replace(/(.)\1{2,}/g, "$1$1")
+  );
 }
 
 /**
@@ -66,14 +100,18 @@ export function containsProfanity(input: string): boolean {
   // Also check the raw lowercase form (without leetspeak substitution)
   // in case a real word got mangled by over-eager normalization.
   const rawLower = input.toLowerCase().replace(/[^a-z]/g, "");
-  return BLOCKLIST.some((word) => normalized.includes(word) || rawLower.includes(word));
+  return BLOCKLIST.some(
+    (word) => normalized.includes(word) || rawLower.includes(word),
+  );
 }
 
 /**
  * Sanitize a player name for storage.
  * Returns { ok, name } on success, { ok: false, error } on rejection.
  */
-export function sanitizeName(raw: string): { ok: true; name: string } | { ok: false; error: string } {
+export function sanitizeName(
+  raw: string,
+): { ok: true; name: string } | { ok: false; error: string } {
   // Trim and collapse internal whitespace
   const trimmed = (raw ?? "").trim().replace(/\s+/g, " ");
   if (trimmed.length === 0) {
@@ -83,7 +121,10 @@ export function sanitizeName(raw: string): { ok: true; name: string } | { ok: fa
     return { ok: false, error: "Names must be 20 characters or less." };
   }
   if (containsProfanity(trimmed)) {
-    return { ok: false, error: "That name isn't allowed. Try a different one!" };
+    return {
+      ok: false,
+      error: "That name isn't allowed. Try a different one!",
+    };
   }
   return { ok: true, name: trimmed };
 }
