@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "know-your-world-db"
-database_id = "REPLACE_ME_AFTER_DB_CREATE"
+database_id = "38e91632-8e07-4c27-8bd9-4ee78ae30812"
 
 # Observability
 [observability]
