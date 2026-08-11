@@ -22,6 +22,11 @@ export interface GameState {
   queue: QueueItem[];
   qIndex: number;
   score: number;
+  /** Wall-clock ms when the quiz started, for time tracking. */
+  startedAt: number;
+  /** Wall-clock ms when the quiz ended, for submission. */
+  endedAt: number | null;
 }
 
-export type Screen = "home" | "continents" | "categories" | "game";
+export type Screen =
+  "home" | "continents" | "categories" | "levels" | "game" | "leaderboard";
