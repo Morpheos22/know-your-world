@@ -1,0 +1,24 @@
+{
+  "name": "@know-your-world/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cloudflare Worker API for Know Your World — score submission, leaderboards, health",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create know-your-world-db",
+    "db:migrate": "wrangler d1 execute know-your-world-db --remote --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 execute know-your-world-db --local --file=./schema.sql",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241011.0",
+    "typescript": "^5.9.2",
+    "wrangler": "^3.80.0"
+  }
+}
