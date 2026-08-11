@@ -57,26 +57,37 @@ const CONTINENTS = new Set(["africa", "asia", "europe", "americas"]);
 const CATEGORIES = new Set(["capitals", "presidents", "flags", "currencies"]);
 const LEVELS = new Set(["easy", "medium", "hard"]);
 
-function validateTrack(continent: string, category: string, level: string): string | null {
+function validateTrack(
+  continent: string,
+  category: string,
+  level: string,
+): string | null {
   if (!CONTINENTS.has(continent)) return `Invalid continent: ${continent}`;
   if (!CATEGORIES.has(category)) return `Invalid category: ${category}`;
   if (!LEVELS.has(level)) return `Invalid level: ${level}`;
   return null;
 }
 
-function validateScorePayload(body: Partial<ScoreSubmission>): { ok: true; data: ScoreSubmission } | { ok: false; error: string } {
+function validateScorePayload(
+  body: Partial<ScoreSubmission>,
+): { ok: true; data: ScoreSubmission } | { ok: false; error: string } {
   if (!body || typeof body !== "object") {
     return { ok: false, error: "Request body required." };
   }
 
-  const { name, continent, category, level, score, total, timeMs, passed } = body;
+  const { name, continent, category, level, score, total, timeMs, passed } =
+    body;
 
   // Name
   const nameCheck = sanitizeName(String(name ?? ""));
   if (!nameCheck.ok) return { ok: false, error: nameCheck.error };
 
   // Track
-  const trackError = validateTrack(String(continent ?? ""), String(category ?? ""), String(level ?? ""));
+  const trackError = validateTrack(
+    String(continent ?? ""),
+    String(category ?? ""),
+    String(level ?? ""),
+  );
   if (trackError) return { ok: false, error: trackError };
 
   // Numeric fields
@@ -136,7 +147,11 @@ app.use(
 // GET /api/healthz
 // ----------------------------------------------------------------------------
 app.get("/api/healthz", (c) => {
-  return c.json({ status: "ok", service: "know-your-world-api", time: Date.now() });
+  return c.json({
+    status: "ok",
+    service: "know-your-world-api",
+    time: Date.now(),
+  });
 });
 
 // ----------------------------------------------------------------------------
@@ -169,7 +184,12 @@ app.post("/api/scores", async (c) => {
      ORDER BY score DESC, time_ms ASC LIMIT 1`,
   )
     .bind(nameKey, data.continent, data.category, data.level)
-    .first<{ id: number; score: number; time_ms: number; created_at: number }>();
+    .first<{
+      id: number;
+      score: number;
+      time_ms: number;
+      created_at: number;
+    }>();
 
   let isHighScore = false;
   let personalBest = data.score;
@@ -179,7 +199,10 @@ app.post("/api/scores", async (c) => {
     // Already have an entry. Update only if the new score is strictly higher,
     // OR equal but faster.
     personalBest = Math.max(existing.score, data.score);
-    if (data.score > existing.score || (data.score === existing.score && data.timeMs < existing.time_ms)) {
+    if (
+      data.score > existing.score ||
+      (data.score === existing.score && data.timeMs < existing.time_ms)
+    ) {
       isHighScore = true;
       await c.env.DB.prepare(
         `UPDATE scores SET
@@ -232,7 +255,14 @@ app.post("/api/scores", async (c) => {
      WHERE continent = ? AND category = ? AND level = ?
        AND (score > ? OR (score = ? AND time_ms < ?))`,
   )
-    .bind(data.continent, data.category, data.level, data.score, data.score, data.timeMs)
+    .bind(
+      data.continent,
+      data.category,
+      data.level,
+      data.score,
+      data.score,
+      data.timeMs,
+    )
     .first<{ count: number }>();
 
   const rank = (rankResult?.count ?? 0) + 1;
@@ -246,7 +276,8 @@ app.post("/api/scores", async (c) => {
     .first<{ count: number }>();
 
   const totalEntries = totalResult?.count ?? 0;
-  const percentile = totalEntries > 0 ? Math.round((1 - (rank - 1) / totalEntries) * 100) : 100;
+  const percentile =
+    totalEntries > 0 ? Math.round((1 - (rank - 1) / totalEntries) * 100) : 100;
 
   return c.json({
     id: scoreId,
