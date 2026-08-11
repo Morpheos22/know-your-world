@@ -1,18 +1,11 @@
 modules = ["nodejs-24"]
 
 [[artifacts]]
-id = "artifacts/api-server"
-
-[[artifacts]]
-id = "artifacts/mockup-sandbox"
+id = "artifacts/know-your-world"
 
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
 
 [workflows]
 runButton = "Project"
@@ -21,10 +14,6 @@ runButton = "Project"
 stack = "PNPM_WORKSPACE"
 expertMode = true
 integrations = ["github:1.0.0"]
-
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
