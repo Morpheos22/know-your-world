@@ -21,7 +21,12 @@ export interface GameState {
   level: number;
   queue: QueueItem[];
   qIndex: number;
+  /** Total questions answered correctly (excludes fact cards). */
   score: number;
+  /** Total questions answered (correct or wrong; excludes fact cards). */
+  questionsAnswered: number;
+  /** Total number of question items in the queue (excludes fact cards). */
+  totalQuestions: number;
   /** Wall-clock ms when the quiz started, for time tracking. */
   startedAt: number;
   /** Wall-clock ms when the quiz ended, for submission. */
