@@ -130,13 +130,38 @@ npx wrangler d1 execute know-your-world-db --local --file=./schema.sql
 
 Wrangler creates a local SQLite file under `.wrangler/`. The `--local` flag in `wrangler dev` will automatically use it.
 
+### Leaders Data → Wikidata Auto-Refresh
+
+The "Presidents / Leaders" category uses data that goes stale when countries change leaders. To keep it current, the leaders data is auto-refreshed from [Wikidata](https://www.wikidata.org/) at build time.
+
+**How it works:**
+
+1. `scripts/wikidata/generate-leaders.mjs` fetches current heads of state/government for 96 countries via the Wikidata Action API (`wbgetentities`).
+2. It generates `artifacts/know-your-world/src/data/leaders-generated.ts` with the fresh data.
+3. Results are cached in `.cache/wikidata-leaders.json` for 24 hours to avoid hammering the API.
+4. The build pipeline (`vercel.json` → `pnpm run build`) runs the generator before every Vite build.
+
+**Fallback behavior:**
+
+- If Wikidata is unreachable (rate-limited, network error), the generator keeps the existing `leaders-generated.ts` file unchanged and exits successfully.
+- The committed `leaders-generated.ts` serves as a last-known-good fallback — the build always succeeds even if Wikidata is down.
+- If you want to force a refresh bypassing the cache: `FORCE_REFRESH=1 pnpm run generate:leaders`
+
+**Country → Wikidata QID mapping:**
+
+The mapping is defined in `scripts/wikidata/countries.mjs`. Each entry specifies the country name, Wikidata QID, political role (president / prime-minister / chancellor / monarch / supreme-leader), and difficulty level. To add or remove countries, edit that file and re-run the generator.
+
+**Question text format:**
+
+Questions are generated as `"{Title} of {Country} (as of {YYYY-MM})?"` — the date stamp makes it clear to players when the answer was last verified. Distractors are picked from other leaders on the same continent to keep them plausible.
+
 ## Deployment
 
 ### Frontend → Vercel
 
 The frontend auto-deploys on every push to `main` via the Vercel GitHub integration. The `vercel.json` at the repo root configures:
 
-- **Build command:** `pnpm --filter @workspace/know-your-world run build`
+- **Build command:** `pnpm run generate:leaders && pnpm --filter @workspace/know-your-world run build` (refreshes leaders data from Wikidata, then builds)
 - **Output directory:** `artifacts/know-your-world/dist/public`
 - **Install command:** `pnpm install --no-frozen-lockfile`
 - **Framework:** Vite
@@ -294,13 +319,14 @@ Fetch the top entries for a track.
 
 ### Root (`package.json`)
 
-| Script                  | Purpose                                   |
-| ----------------------- | ----------------------------------------- |
-| `pnpm run build`        | Typecheck + build the quiz app            |
-| `pnpm run typecheck`    | Run `tsc --noEmit` in the quiz app        |
-| `pnpm run format`       | Run Prettier on the whole repo            |
-| `pnpm run format:check` | Check Prettier formatting without writing |
-| `pnpm run lint`         | Alias for `format:check`                  |
+| Script                      | Purpose                                                           |
+| --------------------------- | ----------------------------------------------------------------- |
+| `pnpm run build`            | Refresh leaders from Wikidata, typecheck, build the quiz app      |
+| `pnpm run generate:leaders` | Fetch current leaders from Wikidata, write `leaders-generated.ts` |
+| `pnpm run typecheck`        | Run `tsc --noEmit` in the quiz app                                |
+| `pnpm run format`           | Run Prettier on the whole repo                                    |
+| `pnpm run format:check`     | Check Prettier formatting without writing                         |
+| `pnpm run lint`             | Alias for `format:check`                                          |
 
 ### Frontend (`artifacts/know-your-world/package.json`)
 
