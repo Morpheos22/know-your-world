@@ -164,18 +164,24 @@ async function callElevenLabs(
       text,
       model_id: "eleven_turbo_v2", // fast + multilingual
       voice_settings: {
-        // High stability (0.65) ensures consistent delivery across all
-        // questions — the voice maintains the same tone and pacing every
-        // time, which is important for K12 familiarity.
-        stability: 0.65,
-        // High similarity_boost (0.85) keeps the voice closely matched
-        // to the original Morpheos voice profile — no drift between calls.
-        similarity_boost: 0.85,
-        // Style at 0.0 = neutral, no dramatic exaggeration. Kids need
-        // clear, calm delivery — not theatrical variation.
-        style: 0.0,
-        // use_speaker_boost=true enhances voice clarity and consistency
-        // by emphasizing the speaker's vocal characteristics.
+        // Lower stability (0.35) allows emotional variation — the voice
+        // sounds happy, animated, and engaged rather than monotone.
+        // Kids respond to warmth and energy in a voice.
+        stability: 0.35,
+        // Moderate similarity_boost (0.75) keeps the Morpheos voice
+        // recognizable while allowing enough flexibility for expressive,
+        // whimsical delivery. Too high locks the voice into one pattern.
+        similarity_boost: 0.75,
+        // High style (0.5) = expressive, theatrical, whimsical.
+        // This makes the voice sound joyful and fun — kids want to engage
+        // with a voice that sounds like it's enjoying the game too.
+        // It adds natural inflection and playfulness to the delivery.
+        style: 0.5,
+        // use_speaker_boost=true enhances voice clarity and addresses
+        // the plosive inflection issue on words starting with "b" (and
+        // other plosives). Speaker boost emphasizes the voice's natural
+        // characteristics, smoothing out sharp consonant emphasis and
+        // making the delivery more consistent across all phonemes.
         use_speaker_boost: true,
       },
     }),
