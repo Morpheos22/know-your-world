@@ -102,8 +102,12 @@ async function fetchLeadersFromWikidata(continentEntries) {
   );
 
   // ---- Pass 1: fetch all countries to get their leader claims ----
-  /** @type {Record<string, { leaderQid: string, prop: string }>} */
-  const countryToLeader = {};
+  // Store BOTH P6 and P35 if they exist, so the merge step can pick the right
+  // one based on the country's configured role. Previously we only stored the
+  // first property found (P6 first), which caused stale P6 claims to shadow
+  // correct P35 claims (e.g., DRC's ousted PM Ilunga shadowing President Tshisekedi).
+  /** @type {Record<string, { P6?: string, P35?: string }>} */
+  const countryToLeaders = {};
   const countryQidArr = [...countryQids];
   const BATCH = 3; // very small batches to avoid 403s from this IP
 
@@ -114,7 +118,7 @@ async function fetchLeadersFromWikidata(continentEntries) {
       const entity = entities[qid];
       if (!entity?.claims) continue;
 
-      // Try P6 (head of government) first, then P35 (head of state)
+      // Check BOTH P6 (head of government) and P35 (head of state)
       for (const prop of ["P6", "P35"]) {
         const claims = entity.claims[prop];
         if (!claims || claims.length === 0) continue;
@@ -131,19 +135,16 @@ async function fetchLeadersFromWikidata(continentEntries) {
         candidates.sort((a, b) => {
           const aStart = extractTimeValue(a.qualifiers?.P580);
           const bStart = extractTimeValue(b.qualifiers?.P580);
-          // If both have start times, prefer the later one
           if (aStart && bStart) return bStart - aStart;
-          // If only one has a start time, prefer it
           if (aStart && !bStart) return -1;
           if (!aStart && bStart) return 1;
           return 0;
         });
 
-        const current = candidates[0];
-        const leaderQid = current.mainsnak?.datavalue?.value?.id;
+        const leaderQid = candidates[0].mainsnak?.datavalue?.value?.id;
         if (leaderQid) {
-          countryToLeader[qid] = { leaderQid, prop };
-          break; // take the first matching property
+          if (!countryToLeaders[qid]) countryToLeaders[qid] = {};
+          countryToLeaders[qid][prop] = leaderQid;
         }
       }
     }
@@ -156,8 +157,9 @@ async function fetchLeadersFromWikidata(continentEntries) {
 
   // ---- Pass 2: fetch all leader labels ----
   const leaderQids = new Set();
-  for (const { leaderQid } of Object.values(countryToLeader)) {
-    leaderQids.add(leaderQid);
+  for (const props of Object.values(countryToLeaders)) {
+    if (props.P6) leaderQids.add(props.P6);
+    if (props.P35) leaderQids.add(props.P35);
   }
 
   console.log(`  Fetching ${leaderQids.size} leader labels...`);
@@ -182,17 +184,27 @@ async function fetchLeadersFromWikidata(continentEntries) {
   // ---- Merge ----
   let found = 0;
   let missing = 0;
-  for (const [countryQid, { leaderQid, prop }] of Object.entries(
-    countryToLeader,
-  )) {
-    const label = leaderLabels[leaderQid];
-    if (label) {
-      result[countryQid] = { leader: label, prop };
-      found++;
+
+  // Store leaders keyed by property so the merge step in main() can pick
+  // the right one based on the country's configured role.
+  // result[countryQid] = { P6?: { leader, prop }, P35?: { leader, prop } }
+  for (const [countryQid, props] of Object.entries(countryToLeaders)) {
+    /** @type {{ P6?: { leader: string, prop: string }, P35?: { leader: string, prop: string } }} */
+    const entry = {};
+    for (const [prop, leaderQid] of Object.entries(props)) {
+      const label = leaderLabels[leaderQid];
+      if (label) {
+        entry[prop] = { leader: label, prop };
+        found++;
+      } else {
+        console.warn(
+          `  WARN: No label for leader ${leaderQid} of country ${countryQid} (${prop})`,
+        );
+      }
+    }
+    if (entry.P6 || entry.P35) {
+      result[countryQid] = entry;
     } else {
-      console.warn(
-        `  WARN: No label for leader ${leaderQid} of country ${countryQid}`,
-      );
       missing++;
     }
   }
@@ -284,7 +296,7 @@ function sleep(ms) {
 
 /**
  * Read cached data if it exists and is fresh.
- * @returns {Record<string, { leader: string, prop: string } | null> | null}
+ * @returns {Record<string, any> | null}
  */
 function readCache() {
   if (!existsSync(CACHE_FILE)) return null;
@@ -305,7 +317,7 @@ function readCache() {
 
 /**
  * Write cache data.
- * @param {Record<string, { leader: string, prop: string } | null>} leaders
+ * @param {Record<string, any>} leaders
  */
 function writeCache(leaders) {
   mkdirSync(CACHE_DIR, { recursive: true });
@@ -471,19 +483,27 @@ async function main() {
   for (const [continent, entries] of Object.entries(COUNTRIES)) {
     continentData[continent] = entries.map((entry) => {
       const cached = leaders[entry.qid];
-      const wantedProp = roleToProperty(entry.role);
-
-      // If the country has the property we want, use it
-      if (cached && cached.prop === wantedProp && cached.leader) {
-        foundCount++;
-        return { ...entry, leader: cached.leader };
+      if (!cached) {
+        missingCount++;
+        console.warn(
+          `  WARN: No leader found for ${entry.name} (${entry.qid})`,
+        );
+        return { ...entry, leader: null };
       }
 
-      // If the country has a different property (e.g., we wanted P35 but only
-      // P6 exists, or vice versa), use what we have rather than nothing
-      if (cached && cached.leader) {
+      const wantedProp = roleToProperty(entry.role);
+
+      // Try the property matching the role first
+      if (cached[wantedProp]?.leader) {
         foundCount++;
-        return { ...entry, leader: cached.leader };
+        return { ...entry, leader: cached[wantedProp].leader };
+      }
+
+      // Fall back to whichever property is available
+      const fallback = cached.P35 || cached.P6;
+      if (fallback?.leader) {
+        foundCount++;
+        return { ...entry, leader: fallback.leader };
       }
 
       // No data for this country
