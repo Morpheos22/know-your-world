@@ -1,28 +1,20 @@
 import type { Question, Continent, Category } from "./types";
-import {
-  africaCountries,
-  africaPresidents,
-  africaFlags,
-  africaCurrencies,
-} from "./africa";
-import {
-  asiaCountries,
-  asiaPresidents,
-  asiaFlags,
-  asiaCurrencies,
-} from "./asia";
-import {
-  europeCountries,
-  europePresidents,
-  europeFlags,
-  europeCurrencies,
-} from "./europe";
+import { africaCountries, africaFlags, africaCurrencies } from "./africa";
+import { asiaCountries, asiaFlags, asiaCurrencies } from "./asia";
+import { europeCountries, europeFlags, europeCurrencies } from "./europe";
 import {
   americasCountries,
-  americasPresidents,
   americasFlags,
   americasCurrencies,
 } from "./americas";
+// Presidents/leaders data is auto-generated from Wikidata at build time.
+// Run `pnpm run generate:leaders` to refresh, or see scripts/wikidata/.
+import {
+  africaPresidents,
+  asiaPresidents,
+  europePresidents,
+  americasPresidents,
+} from "./leaders-generated";
 
 const DB: Record<Continent, Record<Category, Question[]>> = {
   Africa: {

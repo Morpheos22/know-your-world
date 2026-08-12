@@ -5,7 +5,8 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "preinstall": "npx --yes only-allow pnpm",
-    "build": "pnpm run typecheck && pnpm --filter @workspace/know-your-world run build",
+    "generate:leaders": "node scripts/wikidata/generate-leaders.mjs",
+    "build": "pnpm run generate:leaders && pnpm run typecheck && pnpm --filter @workspace/know-your-world run build",
     "typecheck": "pnpm --filter @workspace/know-your-world run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
