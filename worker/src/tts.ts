@@ -164,9 +164,18 @@ async function callElevenLabs(
       text,
       model_id: "eleven_turbo_v2", // fast + multilingual
       voice_settings: {
-        stability: 0.5,
-        similarity_boost: 0.75,
+        // High stability (0.65) ensures consistent delivery across all
+        // questions — the voice maintains the same tone and pacing every
+        // time, which is important for K12 familiarity.
+        stability: 0.65,
+        // High similarity_boost (0.85) keeps the voice closely matched
+        // to the original Morpheos voice profile — no drift between calls.
+        similarity_boost: 0.85,
+        // Style at 0.0 = neutral, no dramatic exaggeration. Kids need
+        // clear, calm delivery — not theatrical variation.
         style: 0.0,
+        // use_speaker_boost=true enhances voice clarity and consistency
+        // by emphasizing the speaker's vocal characteristics.
         use_speaker_boost: true,
       },
     }),
