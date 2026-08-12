@@ -618,12 +618,6 @@ export const europeCurrencies: Question[] = [
     lvl: 2,
   },
   {
-    q: "Currency of Turkey?",
-    a: "Turkish Lira",
-    opts: ["Euro", "Turkish Lira", "Dinar", "Pound"],
-    lvl: 2,
-  },
-  {
     q: "Currency of Ukraine?",
     a: "Hryvnia",
     opts: ["Ruble", "Hryvnia", "Zloty", "Leu"],

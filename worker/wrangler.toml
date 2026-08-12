@@ -3,12 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2024-10-11"
 compatibility_flags = ["nodejs_compat"]
 
-# D1 database binding — created via `pnpm --filter @know-your-world/api run db:create`
-# After creation, wrangler will print a database_id; paste it below.
+# D1 database binding
 [[d1_databases]]
 binding = "DB"
 database_name = "know-your-world-db"
 database_id = "38e91632-8e07-4c27-8bd9-4ee78ae30812"
+
+# Workers AI binding — used as TTS fallback when ElevenLabs is unavailable
+[ai]
+binding = "AI"
 
 # Observability
 [observability]
@@ -19,3 +22,14 @@ enabled = true
 CORS_ORIGIN = "https://know-your-world.vercel.app"
 LEADERBOARD_LIMIT = "10"
 MAX_NAME_LENGTH = "20"
+# ElevenLabs voice ID for "Morpheos" — professional voice from the user's library
+ELEVENLABS_VOICE_ID = "FneGH0QzKZCLmpj2XRD9"
+# TTS rate limiting (requests per IP per minute)
+TTS_RATE_LIMIT = "20"
+# TTS cache TTL in seconds (30 days)
+TTS_CACHE_TTL = "2592000"
+# Max text length for TTS
+TTS_MAX_TEXT_LENGTH = "500"
+
+# Secrets (set via `npx wrangler secret put <NAME>`):
+# - ELEVENLABS_API_KEY — the sk_ API key for ElevenLabs

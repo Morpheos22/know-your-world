@@ -12,6 +12,7 @@ import { usePlayer } from "./hooks/usePlayer";
 import { useSfx, type SoundName } from "./hooks/useSfx";
 import { useScores } from "./hooks/useScores";
 import { useProgress } from "./hooks/useProgress";
+import { useTts } from "./hooks/useTts";
 
 const PASS_THRESHOLD = 4; // out of 8 questions (50% — facts don't count)
 
@@ -596,6 +597,7 @@ function GameScreen({
   const [confirmExit, setConfirmExit] = useState(false);
   const [shuffledOpts, setShuffledOpts] = useState<string[]>([]);
   const item = state.queue[state.qIndex];
+  const tts = useTts();
 
   // BUGFIX: depend only on qIndex, not on `item` (which changes identity each render)
   useEffect(() => {
@@ -735,7 +737,28 @@ function GameScreen({
             {item.type === "fact" ? (
               <>
                 <div className="fact-label">{"\uD83D\uDCA1"} DID YOU KNOW?</div>
-                <div className="q-text">{item.text}</div>
+                <div className="q-text-with-tts">
+                  <div className="q-text">{item.text}</div>
+                  <button
+                    className="tts-btn"
+                    onClick={() => item.text && tts.speak(item.text)}
+                    disabled={tts.loading}
+                    aria-label={
+                      tts.isPlaying(item.text ?? "")
+                        ? "Stop audio"
+                        : "Listen to this fact"
+                    }
+                    title={
+                      tts.isPlaying(item.text ?? "") ? "Playing..." : "Listen"
+                    }
+                  >
+                    {tts.loading && !tts.currentlyPlaying
+                      ? "\u23F3"
+                      : tts.isPlaying(item.text ?? "")
+                        ? "\u23F9"
+                        : "\uD83D\uDC42"}
+                  </button>
+                </div>
                 <div className="options-list">
                   <button
                     className="opt-btn"
@@ -751,7 +774,30 @@ function GameScreen({
                 {item.data?.flag && (
                   <span className="flag-emoji">{item.data.flag}</span>
                 )}
-                <div className="q-text">{item.data?.q}</div>
+                <div className="q-text-with-tts">
+                  <div className="q-text">{item.data?.q}</div>
+                  <button
+                    className="tts-btn"
+                    onClick={() => item.data?.q && tts.speak(item.data.q)}
+                    disabled={tts.loading}
+                    aria-label={
+                      tts.isPlaying(item.data?.q ?? "")
+                        ? "Stop audio"
+                        : "Listen to this question"
+                    }
+                    title={
+                      tts.isPlaying(item.data?.q ?? "")
+                        ? "Playing..."
+                        : "Listen"
+                    }
+                  >
+                    {tts.loading && !tts.currentlyPlaying
+                      ? "\u23F3"
+                      : tts.isPlaying(item.data?.q ?? "")
+                        ? "\u23F9"
+                        : "\uD83D\uDC42"}
+                  </button>
+                </div>
                 <div className="options-list">
                   {shuffledOpts.map((opt) => {
                     let cls = "opt-btn";

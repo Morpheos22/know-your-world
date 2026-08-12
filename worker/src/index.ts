@@ -1,17 +1,19 @@
 /**
  * Know Your World — Cloudflare Worker API
  *
- * Three endpoints:
+ * Endpoints:
  *   GET  /api/healthz                  — health check
  *   POST /api/scores                   — submit a score
- *   GET  /api/leaderboards?continent=&category=&level=&limit= — top N for a track
+ *   GET  /api/leaderboards?...         — top N for a track
+ *   POST /api/tts                      — text-to-speech (ElevenLabs + Workers AI fallback)
  *
- * Stack: Hono + D1 (SQLite at the edge). No auth — name-keyed.
+ * Stack: Hono + D1 (SQLite at the edge) + Workers AI. No auth — name-keyed.
  */
 
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { sanitizeName } from "./profanity";
+import { generateTts } from "./tts";
 
 // ============================================================================
 // Types
@@ -19,9 +21,15 @@ import { sanitizeName } from "./profanity";
 
 interface Env {
   DB: D1Database;
+  AI: Ai;
   CORS_ORIGIN: string;
   LEADERBOARD_LIMIT: string;
   MAX_NAME_LENGTH: string;
+  ELEVENLABS_VOICE_ID: string;
+  ELEVENLABS_API_KEY: string;
+  TTS_RATE_LIMIT: string;
+  TTS_CACHE_TTL: string;
+  TTS_MAX_TEXT_LENGTH: string;
 }
 
 interface ScoreSubmission {
@@ -335,6 +343,110 @@ app.get("/api/leaderboards", async (c) => {
     entries,
     totalEntries: totalResult?.count ?? 0,
   });
+});
+
+// ----------------------------------------------------------------------------
+// POST /api/tts
+// Body: { text: string }
+// Returns: audio/mpeg (binary) on success, JSON error on failure
+//
+// Flow:
+//   1. Validate input (max 500 chars, non-empty, sanitize)
+//   2. Check D1 cache (tts_cache table) — if hit and not expired, return cached audio
+//   3. Cache miss → call ElevenLabs with Morpheos voice
+//   4. If ElevenLabs fails → fall back to Cloudflare Workers AI TTS
+//   5. Store result in D1 cache (30-day TTL)
+//   6. Return audio as base64 JSON (frontend decodes and plays)
+//
+// Rate limiting: per-IP, configurable via TTS_RATE_LIMIT env var (default 20/min)
+// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// In-memory rate limiter for TTS — per-IP, sliding 60-second window.
+// Workers isolates persist across requests, so this works for rate limiting
+// within a single isolate. For multi-isolate precision we'd need D1 or KV,
+// but for a kids' game this is sufficient and far cheaper than D1 queries.
+// ----------------------------------------------------------------------------
+const ttsRequestTimes = new Map<string, number[]>();
+
+function checkRateLimit(ip: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const times = ttsRequestTimes.get(ip) ?? [];
+  // Filter to only timestamps within the window
+  const recent = times.filter((t) => now - t < windowMs);
+  if (recent.length >= limit) {
+    return false; // rate limited
+  }
+  recent.push(now);
+  ttsRequestTimes.set(ip, recent);
+  // Periodic cleanup: if the map is getting large, prune old entries
+  if (ttsRequestTimes.size > 1000) {
+    for (const [key, vals] of ttsRequestTimes) {
+      const fresh = vals.filter((t) => now - t < windowMs);
+      if (fresh.length === 0) {
+        ttsRequestTimes.delete(key);
+      } else {
+        ttsRequestTimes.set(key, fresh);
+      }
+    }
+  }
+  return true;
+}
+
+// ----------------------------------------------------------------------------
+// POST /api/tts
+// Body: { text: string }
+// Returns: { audio, contentType, provider, cached } on success
+//
+// Flow:
+//   1. Validate input (max 500 chars, non-empty)
+//   2. Rate limit check (per-IP, in-memory, configurable)
+//   3. Call generateTts() which checks D1 cache, then ElevenLabs, then Workers AI
+//
+// Security:
+//   - D1 parameterized queries prevent SQL injection
+//   - Text is not interpreted as HTML by the frontend (React escapes by default)
+//   - Audio is returned as base64 JSON, not executed
+// ----------------------------------------------------------------------------
+app.post("/api/tts", async (c) => {
+  let body: { text?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON body." }, 400);
+  }
+
+  const rawText = typeof body.text === "string" ? body.text : "";
+  const maxLen = Number(c.env.TTS_MAX_TEXT_LENGTH) || 500;
+  const text = rawText.trim();
+
+  if (text.length === 0) {
+    return c.json({ error: "Text is required." }, 400);
+  }
+  if (text.length > maxLen) {
+    return c.json({ error: `Text must be ${maxLen} characters or less.` }, 400);
+  }
+
+  // Rate limiting: per-IP, in-memory sliding window
+  const clientIp =
+    c.req.header("cf-connecting-ip") ||
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+  const rateLimit = Number(c.env.TTS_RATE_LIMIT) || 20;
+  const allowed = checkRateLimit(clientIp, rateLimit, 60_000);
+  if (!allowed) {
+    return c.json(
+      { error: "Too many audio requests. Please wait a minute and try again." },
+      429,
+    );
+  }
+
+  try {
+    const result = await generateTts(c.env, text);
+    return c.json(result, 200, { "Cache-Control": "public, max-age=2592000" });
+  } catch (err) {
+    console.error("TTS generation failed:", err);
+    return c.json({ error: "Audio generation failed. Please try again." }, 502);
+  }
 });
 
 // ----------------------------------------------------------------------------

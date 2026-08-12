@@ -986,3 +986,70 @@ body {
     gap: 8px;
   }
 }
+
+/* ============================================================================
+   NEW: TTS (text-to-speech) listen button — 👂 ear icon next to questions
+   ============================================================================ */
+.q-text-with-tts {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.q-text-with-tts .q-text {
+  flex: 1;
+  min-width: 0;
+}
+.tts-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--bg-color);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  line-height: 1;
+}
+.tts-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+  background: var(--highlight);
+}
+.tts-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.tts-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  animation: tts-pulse 1s ease-in-out infinite;
+}
+.tts-btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+@keyframes tts-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Responsive: smaller TTS button on narrow screens */
+@media (max-width: 380px) {
+  .tts-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+}
