@@ -1,11 +1,13 @@
 /**
- * Profanity filter — K12-appropriate blocklist with leetspeak normalization.
+ * Profanity filter + name sanitizer — K12-appropriate.
  *
  * Strategy:
- *   1. Normalize the input: lowercase, strip diacritics, replace common
+ *   1. Strip HTML-like content (XSS protection) — reject names containing
+ *      <, >, &, javascript:, data:, or HTML entity encodings.
+ *   2. Normalize the input: lowercase, strip diacritics, replace common
  *      leetspeak substitutions (@ -> a, $ -> s, 0 -> o, 1 -> i, etc.),
- *      collapse repeated chars.
- *   2. Search for any blocklist word as a substring of the normalized form.
+ *      collapse ALL repeated chars to a single char.
+ *   3. Search for any blocklist word as a substring of the normalized form.
  *
  * This is intentionally simple — false positives are acceptable, false
  * negatives are not. For a kids' game, we err on the side of rejection.
@@ -25,7 +27,6 @@ const BLOCKLIST: readonly string[] = [
   "pussy",
   "asshole",
   "cock",
-  "dick",
   "prick",
   "wank",
   "slut",
@@ -61,8 +62,30 @@ const BLOCKLIST: readonly string[] = [
 ];
 
 /**
+ * Patterns that indicate HTML/script injection attempts.
+ * If any match, the name is rejected outright.
+ */
+const XSS_PATTERNS: readonly RegExp[] = [
+  /</, // any < char (HTML tag start)
+  />/, // any > char (HTML tag end)
+  /&[#a-z0-9]/i, // HTML entity: &#60; &lt; &amp; etc.
+  /javascript:/i, // javascript: URI
+  /data:/i, // data: URI (can carry XSS payloads)
+  /vbscript:/i, // vbscript: URI (IE)
+  /on\w+\s*=/i, // inline event handlers: onclick=, onerror=, etc.
+];
+
+/**
+ * Returns true if the input looks like an HTML/script injection attempt.
+ */
+function looksLikeXss(input: string): boolean {
+  return XSS_PATTERNS.some((pattern) => pattern.test(input));
+}
+
+/**
  * Normalize a string for profanity checking.
- * Strips diacritics, lowercases, replaces leetspeak, collapses repeats.
+ * Strips diacritics, lowercases, replaces leetspeak, collapses ALL repeated
+ * chars to a single char (so "shiiit" -> "shit", not "shiit").
  */
 function normalize(input: string): string {
   return (
@@ -84,8 +107,8 @@ function normalize(input: string): string {
       .replace(/9/g, "g")
       // Strip non-alphanumeric (spaces, punctuation, symbols, emoji)
       .replace(/[^a-z]/g, "")
-      // Collapse repeated chars: "shiiit" -> "shit"
-      .replace(/(.)\1{2,}/g, "$1$1")
+      // Collapse ALL repeated chars to single: "shiiit" -> "shit"
+      .replace(/(.)\1+/g, "$1")
   );
 }
 
@@ -108,6 +131,12 @@ export function containsProfanity(input: string): boolean {
 /**
  * Sanitize a player name for storage.
  * Returns { ok, name } on success, { ok: false, error } on rejection.
+ *
+ * Checks (in order):
+ *   1. Non-empty after trim
+ *   2. Max 20 characters
+ *   3. No HTML/script injection patterns (XSS protection)
+ *   4. No profanity (with leetspeak normalization)
  */
 export function sanitizeName(
   raw: string,
@@ -119,6 +148,12 @@ export function sanitizeName(
   }
   if (trimmed.length > 20) {
     return { ok: false, error: "Names must be 20 characters or less." };
+  }
+  if (looksLikeXss(trimmed)) {
+    return {
+      ok: false,
+      error: "That name isn't allowed. Try a different one!",
+    };
   }
   if (containsProfanity(trimmed)) {
     return {

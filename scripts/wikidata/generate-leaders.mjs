@@ -119,10 +119,27 @@ async function fetchLeadersFromWikidata(continentEntries) {
         const claims = entity.claims[prop];
         if (!claims || claims.length === 0) continue;
 
-        // Find the claim with no end time (P582) — currently in office
-        const current = claims.find((c) => !c.qualifiers?.P582);
-        if (!current) continue;
+        // Find claims with no end time (P582) — presumably currently in office.
+        // Some Wikidata claims are stale (missing end time when they should have one),
+        // so among the "no end time" claims we prefer the one with the most recent
+        // start time (P580). This filters out ousted leaders whose Wikidata entries
+        // were never updated with an end date.
+        const candidates = claims.filter((c) => !c.qualifiers?.P582);
+        if (candidates.length === 0) continue;
 
+        // Sort by start time (P580) descending — most recent first
+        candidates.sort((a, b) => {
+          const aStart = extractTimeValue(a.qualifiers?.P580);
+          const bStart = extractTimeValue(b.qualifiers?.P580);
+          // If both have start times, prefer the later one
+          if (aStart && bStart) return bStart - aStart;
+          // If only one has a start time, prefer it
+          if (aStart && !bStart) return -1;
+          if (!aStart && bStart) return 1;
+          return 0;
+        });
+
+        const current = candidates[0];
         const leaderQid = current.mainsnak?.datavalue?.value?.id;
         if (leaderQid) {
           countryToLeader[qid] = { leaderQid, prop };
@@ -184,6 +201,25 @@ async function fetchLeadersFromWikidata(continentEntries) {
     `  Resolved: ${found} found, ${missing} missing (of ${countryQids.size} countries)`,
   );
   return result;
+}
+
+/**
+ * Extract a comparable timestamp from a Wikidata time-valued qualifier.
+ * Wikidata stores times as strings like "+2019-04-01T00:00:00Z".
+ * Returns milliseconds since epoch, or null if not parseable.
+ *
+ * @param {Array<{datavalue?: {value?: {time?: string}}}> | undefined} qualifier
+ * @returns {number | null}
+ */
+function extractTimeValue(qualifier) {
+  if (!qualifier || !Array.isArray(qualifier) || qualifier.length === 0)
+    return null;
+  const timeStr = qualifier[0]?.datavalue?.value?.time;
+  if (!timeStr || typeof timeStr !== "string") return null;
+  // Wikidata format: "+2019-04-01T00:00:00Z" — strip the leading + and parse
+  const cleaned = timeStr.replace(/^\+/, "");
+  const ts = Date.parse(cleaned);
+  return Number.isNaN(ts) ? null : ts;
 }
 
 /**
