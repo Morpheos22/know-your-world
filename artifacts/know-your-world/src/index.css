@@ -1053,3 +1053,56 @@ body {
     font-size: 1rem;
   }
 }
+
+/* ============================================================================
+   NEW: A/B/C/D letter badges on quiz options
+   ============================================================================ */
+.opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+.opt-letter {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  font-family: "Fredoka", sans-serif;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.opt-text {
+  flex: 1;
+  min-width: 0;
+}
+/* When the option is correct (green), make the letter badge green too */
+.opt-btn.correct .opt-letter {
+  background: var(--success);
+  color: white;
+}
+/* When the option is wrong (red), make the letter badge red too */
+.opt-btn.wrong .opt-letter {
+  background: var(--error);
+  color: white;
+}
+
+/* Responsive: smaller letter badges on narrow screens */
+@media (max-width: 380px) {
+  .opt-letter {
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+  }
+  .opt-btn {
+    gap: 8px;
+  }
+}

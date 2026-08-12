@@ -4,8 +4,12 @@
  * Calls the Worker's /api/tts endpoint, which proxies to ElevenLabs (Morpheos
  * voice) with Workers AI fallback and D1 caching.
  *
- * In-memory cache: once a question's audio is fetched, it's stored in a Map
- * for the session so replaying the same question is instant.
+ * In-memory cache: once a text's audio is fetched, it's stored in a Map
+ * for the session so replaying the same text is instant.
+ *
+ * Two speak methods:
+ *   - speak(text)         — reads a single text (facts, simple content)
+ *   - speakQuestion(q, opts) — reads "Question. A: opt1. B: opt2. C: opt3. D: opt4."
  */
 import { useCallback, useRef, useState } from "react";
 
@@ -38,6 +42,24 @@ export function useTts() {
     }
     setCurrentlyPlaying(null);
   }, []);
+
+  /**
+   * Build the full TTS text for a question with its options.
+   * Format: "Question text. A: option1. B: option2. C: option3. D: option4."
+   *
+   * The letter labels (A/B/C/D) match the on-screen badges so kids can
+   * follow along visually as the voice reads each option.
+   */
+  const buildQuestionText = useCallback(
+    (question: string, options: string[]): string => {
+      const labels = ["A", "B", "C", "D"];
+      const optionParts = options.slice(0, 4).map((opt, i) => {
+        return `${labels[i]}: ${opt}`;
+      });
+      return `${question}. ${optionParts.join(". ")}.`;
+    },
+    [],
+  );
 
   const speak = useCallback(async (text: string): Promise<void> => {
     if (!text || text.length === 0) return;
@@ -106,12 +128,33 @@ export function useTts() {
     }
   }, []);
 
+  /**
+   * Speak a question with its options.
+   * Builds "Question. A: opt1. B: opt2. C: opt3. D: opt4." and calls speak().
+   *
+   * @param question The question text
+   * @param options The 4 option strings (in display order, matches A/B/C/D badges)
+   */
+  const speakQuestion = useCallback(
+    (question: string, options: string[]): Promise<void> => {
+      const fullText = buildQuestionText(question, options);
+      return speak(fullText);
+    },
+    [speak, buildQuestionText],
+  );
+
   return {
     speak,
+    speakQuestion,
     stop,
     loading,
     error,
     currentlyPlaying,
     isPlaying: (text: string) => currentlyPlaying === text,
+    /** Check if a specific question+options combo is currently playing */
+    isPlayingQuestion: (question: string, options: string[]): boolean => {
+      const fullText = buildQuestionText(question, options);
+      return currentlyPlaying === fullText;
+    },
   };
 }

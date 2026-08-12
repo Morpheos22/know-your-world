@@ -778,28 +778,32 @@ function GameScreen({
                   <div className="q-text">{item.data?.q}</div>
                   <button
                     className="tts-btn"
-                    onClick={() => item.data?.q && tts.speak(item.data.q)}
+                    onClick={() =>
+                      item.data?.q &&
+                      tts.speakQuestion(item.data.q, shuffledOpts)
+                    }
                     disabled={tts.loading}
                     aria-label={
-                      tts.isPlaying(item.data?.q ?? "")
+                      tts.isPlayingQuestion(item.data?.q ?? "", shuffledOpts)
                         ? "Stop audio"
-                        : "Listen to this question"
+                        : "Listen to this question and options"
                     }
                     title={
-                      tts.isPlaying(item.data?.q ?? "")
+                      tts.isPlayingQuestion(item.data?.q ?? "", shuffledOpts)
                         ? "Playing..."
                         : "Listen"
                     }
                   >
                     {tts.loading && !tts.currentlyPlaying
                       ? "\u23F3"
-                      : tts.isPlaying(item.data?.q ?? "")
+                      : tts.isPlayingQuestion(item.data?.q ?? "", shuffledOpts)
                         ? "\u23F9"
                         : "\uD83D\uDC42"}
                   </button>
                 </div>
                 <div className="options-list">
-                  {shuffledOpts.map((opt) => {
+                  {shuffledOpts.map((opt, idx) => {
+                    const letter = String.fromCharCode(65 + idx); // A, B, C, D
                     let cls = "opt-btn";
                     if (selected !== null) {
                       if (opt === correctAnswer) cls += " correct";
@@ -812,7 +816,8 @@ function GameScreen({
                         disabled={disabled}
                         onClick={() => handleSelect(opt)}
                       >
-                        {opt}
+                        <span className="opt-letter">{letter}</span>
+                        <span className="opt-text">{opt}</span>
                       </button>
                     );
                   })}
