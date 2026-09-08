@@ -2,18 +2,21 @@
  * Text-to-Speech generation — ElevenLabs primary, Workers AI fallback, D1 cache.
  *
  * Flow:
- *   1. Hash the input text (SHA-256)
+ *   1. Hash the input text + voice ID (SHA-256) — cache key includes voice
  *   2. Check D1 cache (tts_cache table) — return cached audio if hit and fresh
- *   3. Cache miss → call ElevenLabs with the configured voice
+ *   3. Cache miss → call ElevenLabs with the specified voice
  *   4. If ElevenLabs fails → fall back to Cloudflare Workers AI (@cf/myshell-ai/mptts)
  *   5. Store result in D1 cache with provider tag
  *   6. Return { audio, contentType, provider, cached }
+ *
+ * Voice selection: the caller passes a voiceId (e.g., "jessica", "charlie").
+ * The worker maps it to an ElevenLabs voice ID via the VOICE_MAP below.
+ * If voiceId is not recognized, defaults to Jessica (freemium default).
  */
 
 interface Env {
   DB: D1Database;
   AI: Ai;
-  ELEVENLABS_VOICE_ID: string;
   ELEVENLABS_API_KEY: string;
   TTS_CACHE_TTL: string;
 }
@@ -28,6 +31,33 @@ export interface TtsResult {
   /** Whether this was served from cache */
   cached: boolean;
 }
+
+/**
+ * Voice ID → ElevenLabs voice ID mapping.
+ * Must match the frontend voices.ts catalog.
+ */
+const VOICE_MAP: Record<string, string> = {
+  // Freemium
+  jessica: "cgSgspJ2msm6clMCkdW9",
+  laura: "FGY2WhTYpPnrIDTdsKH5",
+  charlie: "IKne3meq5aSn9XLyUdCD",
+  // Premium
+  jazzy: "lBIlRrTlN5ZTPkQzWrCc",
+  beth: "utezIGbCLSGO3Z7oKJwL",
+  sally: "6Sau1r3osO0DDuk8TAi3",
+  alisha: "x60qi81yLOkhyoqo0iH2",
+  natasha: "FBS8ofW8J5OOpakRj2cI",
+  aleja: "gvu7T7CL0qv3iEbOiaTF",
+  jeremy: "FH7lRgC0mVybq7Y40tMa",
+  zain: "kTmRervbB02qoZhoY4dF",
+  rupert: "cROcuppTjlT7WHGPhWiH",
+  david: "J6fZJ9oZVkfNAzrfGJiQ",
+  // Legacy
+  morpheos: "FneGH0QzKZCLmpj2XRD9",
+};
+
+/** Default voice if none specified or unrecognized */
+const DEFAULT_ELEVENLABS_VOICE = "cgSgspJ2msm6clMCkdW9"; // Jessica
 
 /**
  * Compute SHA-256 hash of text, return hex string.
@@ -55,9 +85,21 @@ function bufferToBase64(buffer: ArrayBuffer): string {
 
 /**
  * Main TTS function — handles caching, ElevenLabs, and Workers AI fallback.
+ * @param env Worker environment
+ * @param text Text to synthesize
+ * @param voiceId Voice ID (e.g., "jessica", "charlie", "morpheos")
  */
-export async function generateTts(env: Env, text: string): Promise<TtsResult> {
-  const textHash = await hashText(text);
+export async function generateTts(
+  env: Env,
+  text: string,
+  voiceId: string = "jessica",
+): Promise<TtsResult> {
+  // Resolve the ElevenLabs voice ID from our voice ID
+  const elevenLabsVoiceId = VOICE_MAP[voiceId] ?? DEFAULT_ELEVENLABS_VOICE;
+
+  // Cache key includes voice ID so different voices are cached separately
+  const cacheKey = `${voiceId}:${text}`;
+  const textHash = await hashText(cacheKey);
   const cacheTtl = Number(env.TTS_CACHE_TTL) || 2592000; // 30 days
   const now = Math.floor(Date.now() / 1000);
   const cacheCutoff = now - cacheTtl;
@@ -88,11 +130,11 @@ export async function generateTts(env: Env, text: string): Promise<TtsResult> {
   let audioBuffer: ArrayBuffer | null = null;
   let provider: "elevenlabs" | "workers-ai" = "elevenlabs";
 
-  if (env.ELEVENLABS_API_KEY && env.ELEVENLABS_VOICE_ID) {
+  if (env.ELEVENLABS_API_KEY && elevenLabsVoiceId) {
     try {
       audioBuffer = await callElevenLabs(
         env.ELEVENLABS_API_KEY,
-        env.ELEVENLABS_VOICE_ID,
+        elevenLabsVoiceId,
         text,
       );
     } catch (err) {
@@ -120,12 +162,13 @@ export async function generateTts(env: Env, text: string): Promise<TtsResult> {
   // ---- 5. Store in D1 cache ----
   // Use INSERT OR REPLACE to handle the case where the text_hash exists but
   // was expired (we want to overwrite with fresh audio)
+  // Store the cacheKey (voiceId:text) in the text column for debugging
   try {
     await env.DB.prepare(
       `INSERT OR REPLACE INTO tts_cache (text_hash, text, audio_b64, provider, content_type, created_at)
        VALUES (?, ?, ?, ?, 'audio/mpeg', ?)`,
     )
-      .bind(textHash, text, audioBase64, provider, now)
+      .bind(textHash, cacheKey.slice(0, 500), audioBase64, provider, now)
       .run();
   } catch (err) {
     // Cache write failure is non-fatal — we still return the audio
