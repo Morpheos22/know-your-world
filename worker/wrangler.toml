@@ -22,8 +22,6 @@ enabled = true
 CORS_ORIGIN = "https://know-your-world.vercel.app"
 LEADERBOARD_LIMIT = "10"
 MAX_NAME_LENGTH = "20"
-# ElevenLabs voice ID for "Morpheos" — professional voice from the user's library
-ELEVENLABS_VOICE_ID = "FneGH0QzKZCLmpj2XRD9"
 # TTS rate limiting (requests per IP per minute)
 TTS_RATE_LIMIT = "20"
 # TTS cache TTL in seconds (30 days)

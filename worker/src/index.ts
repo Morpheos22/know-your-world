@@ -25,7 +25,6 @@ interface Env {
   CORS_ORIGIN: string;
   LEADERBOARD_LIMIT: string;
   MAX_NAME_LENGTH: string;
-  ELEVENLABS_VOICE_ID: string;
   ELEVENLABS_API_KEY: string;
   TTS_RATE_LIMIT: string;
   TTS_CACHE_TTL: string;
@@ -440,8 +439,14 @@ app.post("/api/tts", async (c) => {
     );
   }
 
+  // Extract voiceId from request body (defaults to "jessica" if not provided)
+  const voiceId =
+    typeof (body as { voiceId?: unknown }).voiceId === "string"
+      ? (body as { voiceId: string }).voiceId
+      : "jessica";
+
   try {
-    const result = await generateTts(c.env, text);
+    const result = await generateTts(c.env, text, voiceId);
     return c.json(result, 200, { "Cache-Control": "public, max-age=2592000" });
   } catch (err) {
     console.error("TTS generation failed:", err);

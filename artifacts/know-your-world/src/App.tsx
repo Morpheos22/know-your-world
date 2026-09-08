@@ -13,6 +13,9 @@ import { useSfx, type SoundName } from "./hooks/useSfx";
 import { useScores } from "./hooks/useScores";
 import { useProgress } from "./hooks/useProgress";
 import { useTts } from "./hooks/useTts";
+import { useVoice } from "./hooks/useVoice";
+import { VoicePicker } from "./components/VoicePicker";
+import { LEGACY_VOICE, DEFAULT_VOICE_ID, getVoice } from "./data/voices";
 
 const PASS_THRESHOLD = 4; // out of 8 questions (50% — facts don't count)
 
@@ -286,6 +289,7 @@ function HomeScreen({
   onSetName,
   onStart,
   onShowLeaderboard,
+  onShowVoicePicker,
   tracksCompleted,
   tracksStarted,
   play,
@@ -294,6 +298,7 @@ function HomeScreen({
   onSetName: (raw: string) => { ok: true } | { ok: false; error: string };
   onStart: () => void;
   onShowLeaderboard: () => void;
+  onShowVoicePicker: () => void;
   tracksCompleted: number;
   tracksStarted: number;
   play: (s: SoundName) => void;
@@ -428,15 +433,20 @@ function HomeScreen({
             </button>
             <span className="home-pro-badge">PRO</span>
           </div>
-          <button
-            className="home-link-btn home-tip-btn"
-            onClick={() => {
-              play("click");
-              setShowTipModal(true);
-            }}
-          >
-            {"\uD83D\uDC4D"} Leave us a tip
-          </button>
+          <div className="home-link-row">
+            <button className="home-link-btn" onClick={onShowVoicePicker}>
+              {"\uD83C\uDFA4"} Voice
+            </button>
+            <button
+              className="home-link-btn"
+              onClick={() => {
+                play("click");
+                setShowTipModal(true);
+              }}
+            >
+              {"\uD83D\uDC4D"} Tip
+            </button>
+          </div>
           <button
             className="not-me-btn"
             onClick={() => {
@@ -792,6 +802,7 @@ function LevelScreen({
 function GameScreen({
   state,
   playerName,
+  voiceId,
   onAnswer,
   onFactContinue,
   onExit,
@@ -799,6 +810,7 @@ function GameScreen({
 }: {
   state: GameState;
   playerName: string;
+  voiceId: string;
   onAnswer: (selected: string, correct: string) => void;
   onFactContinue: () => void;
   onExit: () => void;
@@ -809,7 +821,7 @@ function GameScreen({
   const [confirmExit, setConfirmExit] = useState(false);
   const [shuffledOpts, setShuffledOpts] = useState<string[]>([]);
   const item = state.queue[state.qIndex];
-  const tts = useTts();
+  const tts = useTts(voiceId);
 
   // BUGFIX: depend only on qIndex, not on `item` (which changes identity each render)
   useEffect(() => {
@@ -1112,12 +1124,21 @@ function ResultModal({
   const passed = state.score >= PASS_THRESHOLD;
   const canGoNextLevel = passed && state.level < 3;
 
+  // Legacy voice (Morpheos) for failure messages — only triggers on fail
+  const legacyTts = useTts(LEGACY_VOICE.id);
+
   useEffect(() => {
     if (passed) {
       play("levelPassed");
       triggerConfetti();
     } else {
       play("levelFailed");
+      // Morpheos reads the failure message — auto-triggers on fail screen
+      const failMessage = `Don't worry, ${playerName}! You scored ${state.score} out of ${total}. Study hard and try again!`;
+      // Small delay so the levelFailed SFX plays first
+      setTimeout(() => {
+        void legacyTts.speak(failMessage, LEGACY_VOICE.id);
+      }, 1500);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1410,6 +1431,8 @@ function App() {
     useSfx();
   const { submitScore, fetchLeaderboard } = useScores();
   const progress = useProgress();
+  const { voiceId, setVoiceId } = useVoice();
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [screen, setScreen] = useState<Screen>("home");
   const [bgGradient, setBgGradient] = useState("none");
   const [gameState, setGameState] = useState<GameState>({
@@ -1732,6 +1755,10 @@ function App() {
               startAmbient();
               setScreen("leaderboard");
             }}
+            onShowVoicePicker={() => {
+              play("click");
+              setShowVoicePicker(true);
+            }}
             tracksCompleted={progress.tracksCompleted()}
             tracksStarted={progress.tracksStarted()}
             play={play}
@@ -1786,6 +1813,7 @@ function App() {
           <GameScreen
             state={gameState}
             playerName={playerName ?? ""}
+            voiceId={voiceId}
             onAnswer={handleAnswer}
             onFactContinue={handleFactContinue}
             onExit={handleExit}
@@ -1800,6 +1828,15 @@ function App() {
           />
         )}
       </div>
+
+      {showVoicePicker && (
+        <VoicePicker
+          selectedVoiceId={voiceId}
+          onSelect={setVoiceId}
+          onClose={() => setShowVoicePicker(false)}
+          play={play}
+        />
+      )}
 
       {showResult && (
         <ResultModal

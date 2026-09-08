@@ -1,17 +1,22 @@
 /**
  * useTts — text-to-speech hook for the quiz game.
  *
- * Calls the Worker's /api/tts endpoint, which proxies to ElevenLabs (Morpheos
- * voice) with Workers AI fallback and D1 caching.
+ * Calls the Worker's /api/tts endpoint, which proxies to ElevenLabs with
+ * Workers AI fallback and D1 caching.
  *
- * In-memory cache: once a text's audio is fetched, it's stored in a Map
- * for the session so replaying the same text is instant.
+ * Accepts a voiceId to select which ElevenLabs voice to use. Defaults to
+ * the freemium voice "jessica" if not specified.
+ *
+ * In-memory cache: keyed by `${voiceId}:${text}` so the same text in
+ * different voices is cached separately.
  *
  * Two speak methods:
  *   - speak(text)         — reads a single text (facts, simple content)
  *   - speakQuestion(q, opts) — reads "Question. A: opt1. B: opt2. C: opt3. D: opt4."
+ *   - speakDemo(text, voiceId) — reads a 4-second demo of a premium voice
  */
 import { useCallback, useRef, useState } from "react";
+import { DEFAULT_VOICE_ID } from "../data/voices";
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -24,12 +29,12 @@ interface TtsResponse {
   cached: boolean;
 }
 
-export function useTts() {
+export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
 
-  // Session-level cache: text -> base64 audio
+  // Session-level cache: `${voiceId}:${text}` -> base64 audio
   const cacheRef = useRef<Map<string, string>>(new Map());
   // Currently active audio element
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -43,13 +48,6 @@ export function useTts() {
     setCurrentlyPlaying(null);
   }, []);
 
-  /**
-   * Build the full TTS text for a question with its options.
-   * Format: "Question text. A: option1. B: option2. C: option3. D: option4."
-   *
-   * The letter labels (A/B/C/D) match the on-screen badges so kids can
-   * follow along visually as the voice reads each option.
-   */
   const buildQuestionText = useCallback(
     (question: string, options: string[]): string => {
       const labels = ["A", "B", "C", "D"];
@@ -61,84 +59,82 @@ export function useTts() {
     [],
   );
 
-  const speak = useCallback(async (text: string): Promise<void> => {
-    if (!text || text.length === 0) return;
+  const speak = useCallback(
+    async (text: string, overrideVoiceId?: string): Promise<void> => {
+      if (!text || text.length === 0) return;
+      const vId = overrideVoiceId ?? voiceId;
 
-    // Stop any currently playing audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-
-    setError(null);
-
-    // Check session cache first
-    let audioBase64 = cacheRef.current.get(text);
-
-    if (!audioBase64) {
-      setLoading(true);
-      try {
-        const resp = await fetch(`${API_BASE}/api/tts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-
-        if (!resp.ok) {
-          const body = await resp.json().catch(() => ({}));
-          throw new Error(body.error ?? `Server error (${resp.status})`);
-        }
-
-        const data = (await resp.json()) as TtsResponse;
-        audioBase64 = data.audio;
-        cacheRef.current.set(text, audioBase64);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to generate audio",
-        );
-        setLoading(false);
-        return;
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
       }
-    }
 
-    setLoading(false);
+      setError(null);
 
-    // Play the audio
-    try {
-      const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
-      audioRef.current = audio;
-      setCurrentlyPlaying(text);
+      // Cache key includes voice ID so different voices are cached separately
+      const cacheKey = `${vId}:${text}`;
+      let audioBase64 = cacheRef.current.get(cacheKey);
 
-      audio.onended = () => {
+      if (!audioBase64) {
+        setLoading(true);
+        try {
+          const resp = await fetch(`${API_BASE}/api/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, voiceId: vId }),
+          });
+
+          if (!resp.ok) {
+            const body = await resp.json().catch(() => ({}));
+            throw new Error(body.error ?? `Server error (${resp.status})`);
+          }
+
+          const data = (await resp.json()) as TtsResponse;
+          audioBase64 = data.audio;
+          cacheRef.current.set(cacheKey, audioBase64);
+        } catch (err) {
+          setError(
+            err instanceof Error ? err.message : "Failed to generate audio",
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      setLoading(false);
+
+      // Play the audio
+      try {
+        const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
+        audioRef.current = audio;
+        setCurrentlyPlaying(cacheKey);
+
+        audio.onended = () => {
+          setCurrentlyPlaying(null);
+          audioRef.current = null;
+        };
+
+        audio.onerror = () => {
+          setError("Failed to play audio");
+          setCurrentlyPlaying(null);
+          audioRef.current = null;
+        };
+
+        await audio.play();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to play audio");
         setCurrentlyPlaying(null);
         audioRef.current = null;
-      };
+      }
+    },
+    [voiceId],
+  );
 
-      audio.onerror = () => {
-        setError("Failed to play audio");
-        setCurrentlyPlaying(null);
-        audioRef.current = null;
-      };
-
-      await audio.play();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to play audio");
-      setCurrentlyPlaying(null);
-      audioRef.current = null;
-    }
-  }, []);
-
-  /**
-   * Speak a question with its options.
-   * Builds "Question. A: opt1. B: opt2. C: opt3. D: opt4." and calls speak().
-   *
-   * @param question The question text
-   * @param options The 4 option strings (in display order, matches A/B/C/D badges)
-   */
   const speakQuestion = useCallback(
-    (question: string, options: string[]): Promise<void> => {
+    (question: string, options: string[], overrideVoiceId?: string) => {
       const fullText = buildQuestionText(question, options);
-      return speak(fullText);
+      return speak(fullText, overrideVoiceId);
     },
     [speak, buildQuestionText],
   );
@@ -150,11 +146,10 @@ export function useTts() {
     loading,
     error,
     currentlyPlaying,
-    isPlaying: (text: string) => currentlyPlaying === text,
-    /** Check if a specific question+options combo is currently playing */
+    isPlaying: (text: string) => currentlyPlaying === `${voiceId}:${text}`,
     isPlayingQuestion: (question: string, options: string[]): boolean => {
       const fullText = buildQuestionText(question, options);
-      return currentlyPlaying === fullText;
+      return currentlyPlaying === `${voiceId}:${fullText}`;
     },
   };
 }
