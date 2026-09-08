@@ -431,7 +431,89 @@ export function useSfx() {
     streakRef.current = 0;
   }, []);
 
-  return { play, muted, toggleMute, resetStreak };
+  // Ambient background audio — low-volume whimsical loop
+  // Uses a slow arpeggio of sine waves at low gain
+  const ambientRef = useRef<{ stop: () => void } | null>(null);
+  const [ambientOn, setAmbientOn] = useState(false);
+
+  const startAmbient = useCallback(() => {
+    if (mutedRef.current || ambientRef.current) return;
+    const ac = getCtx();
+    if (!ac) return;
+
+    // Low-volume slow arpeggio: C4 -> E4 -> G4 -> C5 -> G4 -> E4 (loop)
+    const notes = [NOTE.C4, NOTE.E4, NOTE.G4, NOTE.C5, NOTE.G4, NOTE.E4];
+    const noteDuration = 2.0; // 2 seconds per note
+    let startTime = ac.currentTime;
+    const oscillators: OscillatorNode[] = [];
+
+    // Schedule the first loop, then reschedule via interval
+    const scheduleLoop = (startT: number) => {
+      for (let i = 0; i < notes.length; i++) {
+        const osc = ac.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(notes[i], startT + i * noteDuration);
+        const gain = ac.createGain();
+        gain.gain.setValueAtTime(0, startT + i * noteDuration);
+        gain.gain.linearRampToValueAtTime(
+          0.04,
+          startT + i * noteDuration + 0.5,
+        );
+        gain.gain.linearRampToValueAtTime(
+          0,
+          startT + i * noteDuration + noteDuration - 0.3,
+        );
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.start(startT + i * noteDuration);
+        osc.stop(startT + i * noteDuration + noteDuration);
+        oscillators.push(osc);
+      }
+      return startT + notes.length * noteDuration;
+    };
+
+    let nextStart = scheduleLoop(startTime);
+    // Reschedule every 4 seconds to keep it going
+    const interval = setInterval(() => {
+      const acNow = getCtx();
+      if (!acNow || mutedRef.current) return;
+      if (acNow.currentTime >= nextStart - 4) {
+        nextStart = scheduleLoop(nextStart);
+      }
+    }, 4000);
+
+    ambientRef.current = {
+      stop: () => {
+        clearInterval(interval);
+        for (const osc of oscillators) {
+          try {
+            osc.stop(0);
+          } catch {
+            // already stopped
+          }
+        }
+      },
+    };
+    setAmbientOn(true);
+  }, []);
+
+  const stopAmbient = useCallback(() => {
+    if (ambientRef.current) {
+      ambientRef.current.stop();
+      ambientRef.current = null;
+    }
+    setAmbientOn(false);
+  }, []);
+
+  return {
+    play,
+    muted,
+    toggleMute,
+    resetStreak,
+    startAmbient,
+    stopAmbient,
+    ambientOn,
+  };
 }
 
 export type { SoundName };
