@@ -1106,3 +1106,447 @@ body {
     gap: 8px;
   }
 }
+
+/* ============================================================================
+   PHASE 1: Realistic 3D Globe
+   ============================================================================ */
+.globe-stage {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  margin: 20px auto;
+  cursor: pointer;
+  perspective: 600px;
+}
+.globe-orb {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 10px auto;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    #4da6ff 0%,
+    #2980d9 30%,
+    #1a5490 60%,
+    #0d2e52 100%
+  );
+  box-shadow:
+    inset -20px -20px 40px rgba(0, 0, 0, 0.5),
+    inset 10px 10px 20px rgba(255, 255, 255, 0.1),
+    0 0 30px rgba(77, 166, 255, 0.3);
+  overflow: hidden;
+  animation: globe-float 6s ease-in-out infinite;
+}
+.globe-surface {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(
+      ellipse at 25% 35%,
+      rgba(80, 200, 120, 0.6) 0%,
+      transparent 25%
+    ),
+    radial-gradient(
+      ellipse at 60% 50%,
+      rgba(80, 200, 120, 0.5) 0%,
+      transparent 20%
+    ),
+    radial-gradient(
+      ellipse at 45% 70%,
+      rgba(60, 180, 100, 0.4) 0%,
+      transparent 18%
+    ),
+    radial-gradient(
+      ellipse at 70% 25%,
+      rgba(200, 180, 100, 0.3) 0%,
+      transparent 12%
+    );
+  animation: globe-rotate 20s linear infinite;
+}
+.globe-meridians,
+.globe-parallels {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.globe-meridians .g {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.globe-m1 {
+  transform: rotateY(0deg) scale(1);
+}
+.globe-m2 {
+  transform: rotateY(60deg) scale(1, 1);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.globe-m3 {
+  transform: rotateY(120deg) scale(1, 1);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+.globe-parallels {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 -30px 0 -29px rgba(255, 255, 255, 0.08),
+    0 -50px 0 -48px rgba(255, 255, 255, 0.06),
+    0 30px 0 -29px rgba(255, 255, 255, 0.08),
+    0 50px 0 -48px rgba(255, 255, 255, 0.06);
+}
+.globe-shine {
+  position: absolute;
+  top: 12%;
+  left: 18%;
+  width: 35%;
+  height: 30%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    rgba(255, 255, 255, 0.35) 0%,
+    transparent 70%
+  );
+  filter: blur(2px);
+}
+.globe-glow {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent 60%,
+    rgba(77, 166, 255, 0.2) 80%,
+    transparent 100%
+  );
+  animation: globe-pulse 4s ease-in-out infinite;
+}
+.globe-ring {
+  position: absolute;
+  top: 50%;
+  left: -15px;
+  right: -15px;
+  height: 8px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(224, 122, 95, 0.4),
+    rgba(224, 122, 95, 0.6),
+    rgba(224, 122, 95, 0.4),
+    transparent
+  );
+  border-radius: 50%;
+  transform: translateY(-50%) rotateX(75deg);
+  filter: blur(1px);
+  opacity: 0.6;
+}
+.globe-shadow {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 12px;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: globe-shadow-pulse 6s ease-in-out infinite;
+}
+
+@keyframes globe-float {
+  0%,
+  100% {
+    transform: translateY(0) rotateZ(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotateZ(2deg);
+  }
+}
+@keyframes globe-rotate {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+@keyframes globe-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+@keyframes globe-shadow-pulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translateX(-50%) scale(0.9);
+    opacity: 0.5;
+  }
+}
+
+/* Globe tap animations */
+.globe-spin .globe-orb {
+  animation:
+    globe-float 6s ease-in-out infinite,
+    globe-spin-anim 1s ease-out;
+}
+@keyframes globe-spin-anim {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+.globe-bounce .globe-orb {
+  animation:
+    globe-float 6s ease-in-out infinite,
+    globe-bounce-anim 0.6s ease-out;
+}
+@keyframes globe-bounce-anim {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+.globe-shrink .globe-orb {
+  animation:
+    globe-float 6s ease-in-out infinite,
+    globe-shrink-anim 0.4s ease-out;
+}
+@keyframes globe-shrink-anim {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(0.8);
+  }
+}
+
+/* ============================================================================
+   PHASE 1: Home screen — Pro + Tip buttons
+   ============================================================================ */
+.home-pro-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.home-pro-badge {
+  background: linear-gradient(135deg, #ffd700, #ffb347);
+  color: #4a3500;
+  padding: 3px 10px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: "Fredoka", sans-serif;
+  letter-spacing: 0.05em;
+}
+.home-link-btn {
+  background: none;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-family: "Poppins", sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.home-link-btn:hover {
+  background: var(--accent);
+  color: var(--bg-color);
+}
+.home-tip-btn {
+  display: block;
+  margin: 12px auto 0;
+}
+
+/* ============================================================================
+   PHASE 1: Pro Disclaimer Modal
+   ============================================================================ */
+.pro-disclaimer-modal {
+  max-width: 380px;
+  text-align: center;
+}
+.pro-modal-icon {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+.pro-modal-disclaimer {
+  color: var(--accent);
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+.pro-pricing {
+  background: var(--highlight);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.pro-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+.pro-price-row:last-child {
+  border-bottom: none;
+}
+.pro-price-label {
+  font-family: "Poppins", sans-serif;
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+.pro-price {
+  font-family: "Fredoka", sans-serif;
+  font-weight: 700;
+  color: var(--primary);
+}
+.pro-modal-note {
+  font-size: 0.75rem;
+  color: #888;
+  font-style: italic;
+}
+
+/* ============================================================================
+   PHASE 1: Tip Modal
+   ============================================================================ */
+.tip-modal {
+  max-width: 360px;
+  text-align: center;
+}
+.tip-modal-icon {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+.tip-modal-subtitle {
+  color: var(--accent);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.tip-amounts {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+.tip-amount-btn {
+  flex: 1;
+  padding: 12px 8px;
+  border: 2px solid var(--primary);
+  border-radius: 12px;
+  background: var(--bg-color);
+  color: var(--primary);
+  font-family: "Fredoka", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.15s ease;
+}
+.tip-amount-btn:hover {
+  background: var(--primary);
+  color: white;
+  transform: translateY(-2px);
+}
+.tip-amount-btn:active {
+  transform: translateY(0);
+}
+.tip-custom {
+  margin-bottom: 16px;
+}
+.tip-custom-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--accent);
+  font-family: "Poppins", sans-serif;
+  margin-bottom: 6px;
+  text-align: left;
+}
+.tip-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tip-currency {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: "Fredoka", sans-serif;
+}
+.tip-custom-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid var(--primary);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-family: "Poppins", sans-serif;
+  outline: none;
+  background: var(--bg-color);
+  color: var(--text-dark);
+}
+.tip-custom-input:focus {
+  border-color: var(--accent);
+}
+.tip-custom-btn {
+  padding: 8px 16px;
+  background: var(--success);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-family: "Fredoka", sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.tip-custom-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   RESPONSIVE: mobile adjustments for new home elements
+   ============================================================================ */
+@media (max-width: 380px) {
+  .globe-stage {
+    width: 110px;
+    height: 110px;
+  }
+  .globe-orb {
+    width: 95px;
+    height: 95px;
+  }
+  .tip-amounts {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pro-pricing {
+    padding: 8px;
+  }
+  .home-link-btn {
+    font-size: 0.8rem;
+    padding: 6px 12px;
+  }
+}

@@ -86,6 +86,10 @@ function MuteButton({
 // Globe (existing, unchanged)
 // ============================================================================
 
+// ============================================================================
+// Globe — realistic CSS 3D globe with intriguing idle animation
+// ============================================================================
+
 function Globe() {
   const ref = useRef<HTMLDivElement>(null);
   const tapCount = useRef(0);
@@ -109,7 +113,168 @@ function Globe() {
     }, 1000);
   }, []);
 
-  return <div className="globe-container" ref={ref} onClick={handleClick} />;
+  return (
+    <div className="globe-stage" ref={ref} onClick={handleClick}>
+      <div className="globe-orb">
+        <div className="globe-surface" />
+        <div className="globe-meridians" />
+        <div className="g globe-m1" />
+        <div className="g globe-m2" />
+        <div className="g globe-m3" />
+        <div className="globe-parallels" />
+        <div className="globe-shine" />
+        <div className="globe-glow" />
+      </div>
+      <div className="globe-ring" />
+      <div className="globe-shadow" />
+    </div>
+  );
+}
+
+// ============================================================================
+// Pro Disclaimer Modal — shown when user clicks Sign Up / Sign In
+// ============================================================================
+
+function ProDisclaimerModal({
+  onProceed,
+  onDecline,
+}: {
+  onProceed: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <div className="modal-overlay" onClick={onDecline}>
+      <div
+        className="modal-content pro-disclaimer-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="pro-modal-icon">{"\u2728"}</div>
+        <h2>Sign Up / Sign In</h2>
+        <p className="pro-modal-disclaimer">
+          This is a <strong>PRO feature</strong> that requires a one-time
+          payment to access.
+        </p>
+        <div className="pro-pricing">
+          <div className="pro-price-row">
+            <span className="pro-price-label">Individual</span>
+            <span className="pro-price">{"\u20A6"}5,000</span>
+          </div>
+          <div className="pro-price-row">
+            <span className="pro-price-label">Organisation</span>
+            <span className="pro-price">{"\u20A6"}17,000</span>
+          </div>
+          <div className="pro-price-row">
+            <span className="pro-price-label">Startup</span>
+            <span className="pro-price">{"\u20A6"}12,000</span>
+          </div>
+        </div>
+        <p className="pro-modal-note">
+          Discounts available for GitHub Student Pack (10%) and Feezy code
+          (16%).
+        </p>
+        <button
+          className="menu-btn"
+          style={{ width: "100%", marginTop: 16 }}
+          onClick={onProceed}
+        >
+          {"\u2705"} Proceed
+        </button>
+        <button className="modal-home-btn" onClick={onDecline}>
+          {"\u274C"} Decline
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Tip Modal — Stripe Payment Link for tips
+// ============================================================================
+
+const TIP_AMOUNTS = [
+  { label: "{" + "\u20A6" + "}500", naira: 500 },
+  { label: "{" + "\u20A6" + "}1,000", naira: 1000 },
+  { label: "{" + "\u20A6" + "}2,000", naira: 2000 },
+];
+
+function TipModal({ onClose }: { onClose: () => void }) {
+  const [customAmount, setCustomAmount] = useState("");
+
+  // Stripe Payment Link — replace with your actual link
+  // Format: https://buy.stripe.com/your_payment_link_id
+  const STRIPE_TIP_LINK = "https://buy.stripe.com/your_tip_payment_link_here";
+
+  const handleTip = (amountNaira: number) => {
+    // For now, redirect to Stripe Payment Link
+    // In Phase 4 we'll integrate Stripe Checkout API directly with dynamic amount
+    const url = `${STRIPE_TIP_LINK}?amount=${amountNaira}`;
+    window.open(url, "_blank");
+    onClose();
+  };
+
+  const handleCustomTip = () => {
+    const amount = Number(customAmount);
+    if (!Number.isFinite(amount) || amount < 100) {
+      return; // minimum N100
+    }
+    handleTip(amount);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content tip-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="tip-modal-icon">{"\uD83D\uDC4D"}</div>
+        <h2>Leave us a tip</h2>
+        <p className="tip-modal-subtitle">
+          Enjoying the game? Support us with a tip!
+        </p>
+
+        <div className="tip-amounts">
+          {TIP_AMOUNTS.map((tip) => (
+            <button
+              key={tip.naira}
+              className="tip-amount-btn"
+              onClick={() => handleTip(tip.naira)}
+            >
+              {tip.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="tip-custom">
+          <label htmlFor="custom-tip" className="tip-custom-label">
+            Custom amount (min {"\u20A6"}100)
+          </label>
+          <div className="tip-custom-row">
+            <span className="tip-currency">{"\u20A6"}</span>
+            <input
+              id="custom-tip"
+              type="number"
+              className="tip-custom-input"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              placeholder="500"
+              min="100"
+            />
+            <button
+              className="tip-custom-btn"
+              onClick={handleCustomTip}
+              disabled={!customAmount || Number(customAmount) < 100}
+            >
+              Tip!
+            </button>
+          </div>
+        </div>
+
+        <button className="modal-home-btn" onClick={onClose}>
+          Maybe later
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ============================================================================
@@ -135,6 +300,8 @@ function HomeScreen({
 }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [showProModal, setShowProModal] = useState(false);
+  const [showTipModal, setShowTipModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -237,7 +404,7 @@ function HomeScreen({
             }}
           >
             <button className="menu-btn" onClick={handleStart}>
-              START GAME
+              {"\uD83C\uDD95"} Play 4 Free
             </button>
             <button
               className="menu-btn menu-btn-secondary"
@@ -249,6 +416,27 @@ function HomeScreen({
               {"\uD83C\uDFC6"} Leaderboard
             </button>
           </div>
+          <div className="home-pro-row">
+            <button
+              className="home-link-btn"
+              onClick={() => {
+                play("click");
+                setShowProModal(true);
+              }}
+            >
+              {"\u2728"} Sign Up / Sign In
+            </button>
+            <span className="home-pro-badge">PRO</span>
+          </div>
+          <button
+            className="home-link-btn home-tip-btn"
+            onClick={() => {
+              play("click");
+              setShowTipModal(true);
+            }}
+          >
+            {"\uD83D\uDC4D"} Leave us a tip
+          </button>
           <button
             className="not-me-btn"
             onClick={() => {
@@ -263,12 +451,36 @@ function HomeScreen({
       )}
 
       <div className="footer">
-        Know Your World V2
+        Developed by Morpheos for Athena Agentic Ltd
         <br />
-        Developed by Faiza Fadipe
-        <br />
-        2025
+        {new Date().getFullYear()}
       </div>
+
+      {showProModal && (
+        <ProDisclaimerModal
+          onProceed={() => {
+            play("click");
+            setShowProModal(false);
+            // Onboarding flow will be implemented in Phase 4
+            alert(
+              "Onboarding flow coming in Phase 4! Auth + payments will be wired up then.",
+            );
+          }}
+          onDecline={() => {
+            play("click");
+            setShowProModal(false);
+          }}
+        />
+      )}
+
+      {showTipModal && (
+        <TipModal
+          onClose={() => {
+            play("click");
+            setShowTipModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1194,7 +1406,8 @@ function LeaderboardScreen({
 
 function App() {
   const { name: playerName, hydrated, setName, clearName } = usePlayer();
-  const { play, muted, toggleMute } = useSfx();
+  const { play, muted, toggleMute, startAmbient, stopAmbient, ambientOn } =
+    useSfx();
   const { submitScore, fetchLeaderboard } = useScores();
   const progress = useProgress();
   const [screen, setScreen] = useState<Screen>("home");
@@ -1337,6 +1550,27 @@ function App() {
     setShowResult(false);
     setScreen("levels");
   }, []);
+
+  // Ambient audio: start on home/selection screens, stop during quiz
+  useEffect(() => {
+    if (
+      screen === "home" ||
+      screen === "continents" ||
+      screen === "categories" ||
+      screen === "levels" ||
+      screen === "leaderboard"
+    ) {
+      if (!ambientOn && !muted) {
+        // Need user interaction before AudioContext can start
+        // We start it on first click anywhere — handled by the play() calls
+      }
+    } else if (screen === "game") {
+      stopAmbient();
+    }
+    if (showResult) {
+      stopAmbient();
+    }
+  }, [screen, showResult, ambientOn, muted, stopAmbient]);
 
   const handleSetName = useCallback(
     (raw: string): { ok: true } | { ok: false; error: string } => {
@@ -1490,8 +1724,14 @@ function App() {
           <HomeScreen
             playerName={playerName}
             onSetName={handleSetName}
-            onStart={() => setScreen("continents")}
-            onShowLeaderboard={() => setScreen("leaderboard")}
+            onStart={() => {
+              startAmbient();
+              setScreen("continents");
+            }}
+            onShowLeaderboard={() => {
+              startAmbient();
+              setScreen("leaderboard");
+            }}
             tracksCompleted={progress.tracksCompleted()}
             tracksStarted={progress.tracksStarted()}
             play={play}
