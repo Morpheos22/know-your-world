@@ -2188,3 +2188,28 @@ body {
     font-size: 0.85rem;
   }
 }
+
+/* ============================================================================
+   LEADERBOARD: Badge of Honour for top 3
+   ============================================================================ */
+.lb-row-podium {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 215, 0, 0.08),
+    rgba(255, 215, 0, 0.02)
+  );
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+.lb-badge-honour {
+  font-size: 0.6rem;
+  background: linear-gradient(135deg, #ffd700, #ffb347);
+  color: #4a3500;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-family: "Fredoka", sans-serif;
+  letter-spacing: 0.05em;
+  margin-left: 4px;
+}

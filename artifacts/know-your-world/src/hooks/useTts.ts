@@ -1,19 +1,12 @@
 /**
  * useTts — text-to-speech hook for the quiz game.
  *
- * Calls the Worker's /api/tts endpoint, which proxies to ElevenLabs with
- * Workers AI fallback and D1 caching.
+ * Playback flow:
+ *   - Click listen button → plays (if not already playing this text)
+ *   - Click again → stops
+ *   - When question changes → stops automatically
  *
- * Accepts a voiceId to select which ElevenLabs voice to use. Defaults to
- * the freemium voice "jessica" if not specified.
- *
- * In-memory cache: keyed by `${voiceId}:${text}` so the same text in
- * different voices is cached separately.
- *
- * Two speak methods:
- *   - speak(text)         — reads a single text (facts, simple content)
- *   - speakQuestion(q, opts) — reads "Question. A: opt1. B: opt2. C: opt3. D: opt4."
- *   - speakDemo(text, voiceId) — reads a 4-second demo of a premium voice
+ * Accepts a voiceId to select which ElevenLabs voice to use.
  */
 import { useCallback, useRef, useState } from "react";
 import { DEFAULT_VOICE_ID } from "../data/voices";
@@ -23,7 +16,7 @@ const API_BASE =
   "https://know-your-world-api.morphylee22.workers.dev";
 
 interface TtsResponse {
-  audio: string; // base64
+  audio: string;
   contentType: string;
   provider: "elevenlabs" | "workers-ai";
   cached: boolean;
@@ -34,9 +27,7 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
   const [error, setError] = useState<string | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
 
-  // Session-level cache: `${voiceId}:${text}` -> base64 audio
   const cacheRef = useRef<Map<string, string>>(new Map());
-  // Currently active audio element
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const stop = useCallback(() => {
@@ -63,8 +54,15 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
     async (text: string, overrideVoiceId?: string): Promise<void> => {
       if (!text || text.length === 0) return;
       const vId = overrideVoiceId ?? voiceId;
+      const cacheKey = `${vId}:${text}`;
 
-      // Stop any currently playing audio
+      // TOGGLE BEHAVIOR: if this exact text is currently playing, stop it
+      if (currentlyPlaying === cacheKey && audioRef.current) {
+        stop();
+        return;
+      }
+
+      // Stop any other currently playing audio
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
@@ -72,8 +70,6 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
 
       setError(null);
 
-      // Cache key includes voice ID so different voices are cached separately
-      const cacheKey = `${vId}:${text}`;
       let audioBase64 = cacheRef.current.get(cacheKey);
 
       if (!audioBase64) {
@@ -104,7 +100,6 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
 
       setLoading(false);
 
-      // Play the audio
       try {
         const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
         audioRef.current = audio;
@@ -128,7 +123,7 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
         audioRef.current = null;
       }
     },
-    [voiceId],
+    [voiceId, currentlyPlaying, stop],
   );
 
   const speakQuestion = useCallback(
