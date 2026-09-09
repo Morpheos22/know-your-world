@@ -2703,3 +2703,69 @@ body {
     left: 16px;
   }
 }
+
+/* ============================================================================
+   AMIR VOICE INDICATOR
+   ============================================================================ */
+.poke-guide-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.poke-guide-voice-toggle {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  color: white;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+.poke-guide-voice-toggle.active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.poke-guide-voice-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+.poke-guide-message-text {
+  flex: 1;
+}
+.poke-guide-speak-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--bg-color);
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  transition: background 0.2s ease;
+}
+.poke-guide-speak-btn:hover {
+  background: var(--highlight);
+}
+.poke-guide-speak-btn.speaking {
+  background: #6b2dff;
+  color: white;
+  border-color: #6b2dff;
+  animation: amir-pulse 1s ease-in-out infinite;
+}
+@keyframes amir-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
