@@ -6,12 +6,22 @@
  *   - GitHub OAuth
  *   - Email/password signup + signin
  *   - Email verification
- *
- * Session persists in localStorage via Supabase SDK.
+ *   - Cloudflare Turnstile captcha token (required by Supabase auth config)
  */
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import type { Session, User } from "@supabase/supabase-js";
+
+// Global to store the Turnstile token (set by the Turnstile callback)
+let turnstileToken: string | null = null;
+
+export function setTurnstileToken(token: string | null) {
+  turnstileToken = token;
+}
+
+export function getTurnstileToken(): string | null {
+  return turnstileToken;
+}
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -20,14 +30,12 @@ export function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -69,14 +77,14 @@ export function useAuth() {
         password,
         options: {
           emailRedirectTo: window.location.origin,
-        },
+          captchaToken: turnstileToken ?? undefined,
+        } as Record<string, unknown>,
       });
       if (err) {
         setError(err.message);
         return { ok: false as const, error: err.message };
       }
       if (data.user && !data.session) {
-        // Email verification required
         return {
           ok: true as const,
           needsVerification: true,
@@ -94,6 +102,9 @@ export function useAuth() {
       const { error: err } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: {
+          captchaToken: turnstileToken ?? undefined,
+        } as Record<string, unknown>,
       });
       if (err) {
         setError(err.message);

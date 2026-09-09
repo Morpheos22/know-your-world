@@ -15,6 +15,7 @@ import { cors } from "hono/cors";
 import { sanitizeName } from "./profanity";
 import { generateTts } from "./tts";
 import { handleAskPoke, handleMcp } from "./poke";
+import { handlePiVerify } from "./pi";
 
 // ============================================================================
 // Types
@@ -34,6 +35,8 @@ interface Env {
   MCP_SHARED_SECRET: string;
   SUPABASE_SECRET_KEY: string;
   STRIPE_SECRET_KEY: string;
+  TURNSTILE_SECRET: string;
+  PI_API_KEY: string;
 }
 
 interface ScoreSubmission {
@@ -478,11 +481,18 @@ app.post("/api/ask-poke", async (c) => {
 });
 
 // ----------------------------------------------------------------------------
+// POST /api/pi/verify — Pi Network payment verification
+// ----------------------------------------------------------------------------
+app.post("/api/pi/verify", async (c) => {
+  return handlePiVerify(c.req.raw, c.env);
+});
+
+// ----------------------------------------------------------------------------
 // /mcp — MCP server (Poke agent integration)
 // Supports POST (JSON-RPC) and GET (endpoint discovery)
+// Handles both /mcp and /mcp/ URLs
 // ----------------------------------------------------------------------------
-app.all("/mcp", async (c) => {
-  // Handle GET (Poke may probe the endpoint first)
+const mcpHandler = async (c: any) => {
   if (c.req.method === "GET") {
     return c.json({
       name: "know-your-world-mcp",
@@ -496,9 +506,11 @@ app.all("/mcp", async (c) => {
       ],
     });
   }
-  // Handle POST (JSON-RPC requests)
   return handleMcp(c.req.raw, c.env);
-});
+};
+
+app.all("/mcp", mcpHandler);
+app.all("/mcp/", mcpHandler);
 
 // ----------------------------------------------------------------------------
 // 404 fallback
