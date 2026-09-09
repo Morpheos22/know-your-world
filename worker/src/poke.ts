@@ -90,6 +90,8 @@ export async function handleAskPoke(
 // ============================================================================
 
 export async function handleMcp(request: Request, env: Env): Promise<Response> {
+  // GET requests are handled by the Hono route handler (returns endpoint info)
+  // Only process POST requests as JSON-RPC
   if (request.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
