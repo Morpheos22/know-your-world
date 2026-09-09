@@ -54,6 +54,8 @@ const VOICE_MAP: Record<string, string> = {
   david: "J6fZJ9oZVkfNAzrfGJiQ",
   // Legacy
   morpheos: "FneGH0QzKZCLmpj2XRD9",
+  // Guide (Amir)
+  amir: "x60qi81yLOkhyoqo0iH2",
 };
 
 /** Default voice if none specified or unrecognized */

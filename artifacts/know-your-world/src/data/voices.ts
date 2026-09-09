@@ -13,7 +13,7 @@
  * Legacy (1): Morpheos, the original voice
  */
 
-export type VoiceCategory = "freemium" | "premium" | "legacy";
+export type VoiceCategory = "freemium" | "premium" | "legacy" | "guide";
 export type VoiceGender = "female" | "male";
 
 export interface Voice {
@@ -164,6 +164,20 @@ export const VOICES: Voice[] = [
     gender: "male",
     description: "Legacy voice — failure screen & mini-game",
     accent: "Nigerian",
+  },
+
+  // ========================================================================
+  // GUIDE (1) — Amir. AI guide assistant on landing page.
+  // Uses Alisha (energetic Gen Z vlogger) — bright, animated, kid-friendly.
+  // ========================================================================
+  {
+    id: "amir",
+    name: "Amir",
+    elevenLabsId: "x60qi81yLOkhyoqo0iH2",
+    category: "guide",
+    gender: "female",
+    description: "AI guide — energetic Gen Z, kid-friendly",
+    accent: "American",
   },
 ];
 

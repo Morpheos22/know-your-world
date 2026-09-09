@@ -2664,3 +2664,42 @@ body {
     font-size: 1.3rem;
   }
 }
+
+/* ============================================================================
+   HOME FLOAT BUTTON — visible on all non-home screens
+   ============================================================================ */
+.home-float-btn {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  font-size: 1.3rem;
+  border: none;
+  cursor: pointer;
+  z-index: 149;
+  box-shadow: 0 4px 12px rgba(224, 122, 95, 0.3);
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-float-btn:hover {
+  transform: scale(1.1);
+}
+.home-float-btn:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 380px) {
+  .home-float-btn {
+    width: 42px;
+    height: 42px;
+    font-size: 1.1rem;
+    bottom: 16px;
+    left: 16px;
+  }
+}
