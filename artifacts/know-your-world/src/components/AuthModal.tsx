@@ -1,16 +1,30 @@
 /**
  * AuthModal — sign in / sign up modal with Google, GitHub, and Email.
  *
- * Shows the PRO feature disclaimer, then the auth options.
  * Includes Cloudflare Turnstile for bot protection.
+ * The Turnstile token is captured via a callback and passed to all
+ * Supabase auth calls.
  */
-import { useState } from "react";
-import { useAuth } from "../hooks/useAuth";
+import { useEffect, useRef, useState } from "react";
+import { useAuth, setTurnstileToken } from "../hooks/useAuth";
 import { TURNSTILE_SITEKEY } from "../lib/supabase";
 
 interface AuthModalProps {
   onClose: () => void;
   play: (s: "click") => void;
+}
+
+// Global callback name for Turnstile (loaded via script tag)
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: Record<string, unknown>,
+      ) => string;
+      reset: (id?: string) => void;
+    };
+  }
 }
 
 export function AuthModal({ onClose, play }: AuthModalProps) {
@@ -30,12 +44,51 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
     null,
   );
   const [loading, setLoading] = useState(false);
+  const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+
+  // Render Turnstile widget when the modal opens
+  useEffect(() => {
+    const renderTurnstile = (): void => {
+      if (window.turnstile && turnstileContainerRef.current) {
+        turnstileContainerRef.current.innerHTML = "";
+        window.turnstile.render(turnstileContainerRef.current, {
+          sitekey: TURNSTILE_SITEKEY,
+          theme: "light",
+          callback: (token: string) => {
+            setTurnstileToken(token);
+            setTurnstileReady(true);
+          },
+          "expired-callback": () => {
+            setTurnstileToken(null);
+            setTurnstileReady(false);
+          },
+          "error-callback": () => {
+            setTurnstileToken(null);
+            setTurnstileReady(false);
+          },
+        });
+      }
+    };
+
+    // Wait for Turnstile script to load
+    if (window.turnstile) {
+      renderTurnstile();
+      return;
+    }
+    const interval = setInterval(() => {
+      if (window.turnstile) {
+        clearInterval(interval);
+        renderTurnstile();
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleGoogle = async () => {
     play("click");
     setLoading(true);
     await signInWithGoogle();
-    // OAuth redirects, so loading state is temporary
   };
 
   const handleGitHub = async () => {
@@ -95,7 +148,7 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
               <button
                 className="auth-provider-btn auth-google"
                 onClick={handleGoogle}
-                disabled={loading}
+                disabled={loading || !turnstileReady}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24">
                   <path
@@ -121,7 +174,7 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
               <button
                 className="auth-provider-btn auth-github"
                 onClick={handleGitHub}
-                disabled={loading}
+                disabled={loading || !turnstileReady}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
                   <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -140,6 +193,7 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
                 play("click");
                 setMode("email-signup");
               }}
+              disabled={!turnstileReady}
             >
               {"\uD83D\uDCE7"} Sign up with Email
             </button>
@@ -157,13 +211,16 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
               </button>
             </p>
 
-            <div className="auth-turnstile-container">
-              <div
-                className="cf-turnstile"
-                data-sitekey={TURNSTILE_SITEKEY}
-                data-theme="light"
-              />
-            </div>
+            {/* Turnstile widget */}
+            <div
+              ref={turnstileContainerRef}
+              className="auth-turnstile-container"
+            />
+            {!turnstileReady && (
+              <p className="auth-captcha-waiting">
+                {"\uD83D\uDD12"} Verifying you're human...
+              </p>
+            )}
 
             <p className="auth-disclaimer">
               PRO feature — one-time fee applies after signup. GitHub Student
