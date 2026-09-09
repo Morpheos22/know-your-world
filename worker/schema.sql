@@ -33,8 +33,8 @@ CREATE TABLE scores (
 
   -- Validation constraints
   CHECK (length(name) >= 1 AND length(name) <= 20),
-  CHECK (continent IN ('africa', 'asia', 'europe', 'americas')),
-  CHECK (category IN ('capitals', 'presidents', 'flags', 'currencies')),
+  CHECK (continent IN ('africa', 'asia', 'europe', 'americas', 'ai world')),
+  CHECK (category IN ('capitals', 'presidents', 'flags', 'currencies', 'gen-ai', 'copilots', 'agents')),
   CHECK (level IN ('easy', 'medium', 'hard')),
   CHECK (score >= 0 AND score <= total),
   CHECK (total > 0),

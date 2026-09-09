@@ -6,7 +6,7 @@ import type {
   GameState,
   QueueItem,
 } from "./data/types";
-import { getQuestionsForLevel } from "./data";
+import { getQuestionsForLevel, AI_FACTS } from "./data";
 import { FACTS } from "./data/facts";
 import { usePlayer } from "./hooks/usePlayer";
 import { useSfx, type SoundName } from "./hooks/useSfx";
@@ -566,6 +566,7 @@ const CONTINENTS: { name: Continent; icon: string }[] = [
   { name: "Asia", icon: "\u26E9\uFE0F" },
   { name: "Europe", icon: "\uD83C\uDFF0" },
   { name: "Americas", icon: "\uD83D\uDDFD" },
+  { name: "AI World", icon: "\uD83E\uDD16" },
 ];
 
 function ContinentScreen({
@@ -646,7 +647,7 @@ function ContinentScreen({
 // Category Selection — with per-category progress
 // ============================================================================
 
-const CATEGORIES: { name: Category; icon: string; label: string }[] = [
+const GEO_CATEGORIES: { name: Category; icon: string; label: string }[] = [
   {
     name: "Countries",
     icon: "\uD83D\uDDFA\uFE0F",
@@ -660,6 +661,28 @@ const CATEGORIES: { name: Category; icon: string; label: string }[] = [
   { name: "Flags", icon: "\uD83C\uDFF3\uFE0F", label: "Flags" },
   { name: "Currencies", icon: "\uD83D\uDCB0", label: "Currencies" },
 ];
+
+const AI_CATEGORIES: { name: Category; icon: string; label: string }[] = [
+  {
+    name: "Generative AI",
+    icon: "\uD83E\uDD16",
+    label: "Generative AI (L1: Easy)",
+  },
+  {
+    name: "Copilots",
+    icon: "\uD83D\uDCBB",
+    label: "Copilots (L2: Medium)",
+  },
+  {
+    name: "Software Agents",
+    icon: "\uD83E\uDDF1",
+    label: "Software Agents (L3: Hard)",
+  },
+];
+
+function getCategoriesForContinent(continent: Continent) {
+  return continent === "AI World" ? AI_CATEGORIES : GEO_CATEGORIES;
+}
 
 function CategoryScreen({
   playerName,
@@ -710,7 +733,7 @@ function CategoryScreen({
           <h3>Select Category</h3>
         </div>
         <div className="grid">
-          {CATEGORIES.map((cat) => {
+          {getCategoriesForContinent(continent).map((cat) => {
             const prog = getCategoryProgress(cat.name);
             return (
               <div
@@ -1380,7 +1403,8 @@ function LeaderboardScreen({
       level: number;
     }[] = [];
     for (const c of CONTINENTS) {
-      for (const cat of CATEGORIES) {
+      const cats = getCategoriesForContinent(c.name);
+      for (const cat of cats) {
         for (let lvl = 1; lvl <= 3; lvl++) {
           tracks.push({ continent: c.name, category: cat.name, level: lvl });
         }
@@ -1548,6 +1572,8 @@ function App() {
       Europe: "radial-gradient(circle at bottom, #4169E1 0%, transparent 70%)",
       Americas:
         "radial-gradient(circle at bottom, #228B22 0%, transparent 70%)",
+      "AI World":
+        "radial-gradient(circle at bottom, #7B2CBF 0%, transparent 70%)",
     };
     setBgGradient(gradients[c]);
     setScreen("categories");
@@ -1561,7 +1587,10 @@ function App() {
         data: q,
       }));
 
-      const factBase = FACTS[continent] || FACTS["Africa"];
+      const factBase =
+        continent === "AI World"
+          ? AI_FACTS
+          : FACTS[continent] || FACTS["Africa"];
       const fIndex = (level - 1) * 2;
       queue.push({
         type: "fact",
@@ -1596,7 +1625,15 @@ function App() {
   const startGame = useCallback(
     (category: Category) => {
       if (!gameState.continent) return;
-      // Pick the highest unlocked level for this track, defaulting to 1
+      // For AI World, the level is determined by the category:
+      // Generative AI = L1, Copilots = L2, Software Agents = L3
+      if (gameState.continent === "AI World") {
+        const aiLevel =
+          category === "Generative AI" ? 1 : category === "Copilots" ? 2 : 3;
+        loadLevel(gameState.continent, category, aiLevel);
+        return;
+      }
+      // For geography continents, pick highest unlocked level
       const highest = progress.highestUnlockedLevel(
         gameState.continent,
         category,
@@ -1902,7 +1939,12 @@ function App() {
               continent={gameState.continent}
               onSelect={(cat) => {
                 setGameState((prev) => ({ ...prev, category: cat }));
-                setScreen("levels");
+                // For AI World, skip level selection (level is determined by category)
+                if (gameState.continent === "AI World") {
+                  startGame(cat);
+                } else {
+                  setScreen("levels");
+                }
               }}
               onBack={() => setScreen("continents")}
               play={play}
