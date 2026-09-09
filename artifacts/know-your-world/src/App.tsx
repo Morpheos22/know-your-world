@@ -19,6 +19,7 @@ import { GlobeMiniGame } from "./components/GlobeMiniGame";
 import { AuthModal } from "./components/AuthModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { OnboardingFlow } from "./components/OnboardingFlow";
+import { PokeGuide } from "./components/PokeGuide";
 import { LEGACY_VOICE, DEFAULT_VOICE_ID, getVoice } from "./data/voices";
 import { useAuth } from "./hooks/useAuth";
 
@@ -1893,6 +1894,7 @@ function App() {
       <div className="app-bg" style={{ backgroundImage: bgGradient }} />
       <div className="app-container">
         <MuteButton muted={muted} onToggle={toggleMute} />
+        <PokeGuide voiceId={voiceId} />
         {effectiveScreen === "home" && (
           <HomeScreen
             playerName={playerName}
