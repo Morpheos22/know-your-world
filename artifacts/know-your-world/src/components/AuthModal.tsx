@@ -167,8 +167,7 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
 
             <p className="auth-disclaimer">
               PRO feature — one-time fee applies after signup. GitHub Student
-              Pack users get 10% off. Use code <strong>Feezy</strong> for 16%
-              off.
+              Pack users get 10% off.
             </p>
           </>
         )}

@@ -205,10 +205,7 @@ function ProDisclaimerModal({
             <span className="pro-price">{"\u20A6"}12,000</span>
           </div>
         </div>
-        <p className="pro-modal-note">
-          Discounts available for GitHub Student Pack (10%) and Feezy code
-          (16%).
-        </p>
+        <p className="pro-modal-note">GitHub Student Pack users get 10% off.</p>
         <button
           className="menu-btn"
           style={{ width: "100%", marginTop: 16 }}
@@ -1357,36 +1354,70 @@ function LeaderboardScreen({
   >;
   play: (s: SoundName) => void;
 }) {
-  const [continent, setContinent] = useState<Continent>("Africa");
-  const [category, setCategory] = useState<Category>("Countries");
-  const [level, setLevel] = useState<number>(1);
-  const [data, setData] = useState<
-    import("./hooks/useScores").LeaderboardResult | null
-  >(null);
+  const [allEntries, setAllEntries] = useState<
+    import("./hooks/useScores").LeaderboardEntry[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchLeaderboard({
-      continent,
-      category,
-      level,
-      limit: 50,
-    });
-    if (result.ok) {
-      setData(result.data);
-    } else {
-      setError(result.error);
-      setData(null);
+
+    // Fetch from all continents/categories/levels and merge into one global list
+    const tracks: {
+      continent: Continent;
+      category: Category;
+      level: number;
+    }[] = [];
+    for (const c of CONTINENTS) {
+      for (const cat of CATEGORIES) {
+        for (let lvl = 1; lvl <= 3; lvl++) {
+          tracks.push({ continent: c.name, category: cat.name, level: lvl });
+        }
+      }
+    }
+
+    try {
+      const results = await Promise.all(
+        tracks.map((t) => fetchLeaderboard({ ...t, limit: 50 })),
+      );
+
+      const merged: import("./hooks/useScores").LeaderboardEntry[] = [];
+      for (const result of results) {
+        if (result.ok) {
+          merged.push(...result.data.entries);
+        }
+      }
+
+      // Sort by score desc, then timeMs asc
+      merged.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.timeMs - b.timeMs;
+      });
+
+      // Re-rank globally
+      const ranked = merged.slice(0, 50).map((entry, idx) => ({
+        ...entry,
+        rank: idx + 1,
+      }));
+
+      setAllEntries(ranked);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load");
     }
     setLoading(false);
-  }, [continent, category, level, fetchLeaderboard]);
+  }, [fetchLeaderboard]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const BADGES: Record<number, string> = {
+    1: "\uD83E\uDD47", // 🥇
+    2: "\uD83E\uDD48", // 🥈
+    3: "\uD83E\uDD49", // 🥉
+  };
 
   return (
     <>
@@ -1401,70 +1432,32 @@ function LeaderboardScreen({
         >
           {"\u2B05\uFE0F"}
         </button>
-        <h2>{"\uD83C\uDFC6"} Leaderboard</h2>
+        <h2>{"\uD83C\uDFC6"} Global Leaderboard</h2>
         <div style={{ width: 24 }} />
       </div>
       <div className="screen">
-        <div className="lb-filters">
-          <label>
-            Continent
-            <select
-              value={continent}
-              onChange={(e) => setContinent(e.target.value as Continent)}
-            >
-              {CONTINENTS.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Category
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Category)}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Level
-            <select
-              value={level}
-              onChange={(e) => setLevel(Number(e.target.value))}
-            >
-              <option value={1}>Easy</option>
-              <option value={2}>Medium</option>
-              <option value={3}>Hard</option>
-            </select>
-          </label>
-        </div>
-
-        {loading && <div className="lb-loading">Loading...</div>}
+        {loading && <div className="lb-loading">Loading global scores...</div>}
         {error && <div className="lb-error">Couldn't load: {error}</div>}
-        {!loading && !error && data && (
+        {!loading && !error && (
           <>
             <div className="lb-meta">
-              {data.totalEntries}{" "}
-              {data.totalEntries === 1 ? "player" : "players"} on this track
+              {allEntries.length} players ranked globally
             </div>
-            {data.entries.length === 0 ? (
+            {allEntries.length === 0 ? (
               <div className="lb-empty">
-                No scores yet — be the first to play this track!
+                No scores yet — be the first to make the leaderboard!
               </div>
             ) : (
               <div className="lb-list">
-                {data.entries.map((entry) => (
-                  <div key={`${entry.rank}-${entry.name}`} className="lb-row">
+                {allEntries.map((entry) => (
+                  <div
+                    key={`${entry.rank}-${entry.name}`}
+                    className={`lb-row${entry.rank <= 3 ? " lb-row-podium" : ""}`}
+                  >
                     <span
                       className={`lb-rank lb-rank-${entry.rank <= 3 ? "top" : "normal"}`}
                     >
-                      #{entry.rank}
+                      {BADGES[entry.rank] ?? `#${entry.rank}`}
                     </span>
                     <span className="lb-name">{entry.name}</span>
                     <span className="lb-score">
@@ -1473,6 +1466,9 @@ function LeaderboardScreen({
                     <span className="lb-time">
                       {(entry.timeMs / 1000).toFixed(1)}s
                     </span>
+                    {entry.rank <= 3 && (
+                      <span className="lb-badge-honour">HONOUR</span>
+                    )}
                   </div>
                 ))}
               </div>
