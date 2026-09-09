@@ -155,6 +155,17 @@ app.use(
   }),
 );
 
+// CORS for /mcp — allow Poke to connect from any origin
+app.use(
+  "/mcp",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "X-Poke-Auth", "X-Poke-User-Id"],
+    maxAge: 86400,
+  }),
+);
+
 // ----------------------------------------------------------------------------
 // GET /api/healthz
 // ----------------------------------------------------------------------------
@@ -467,9 +478,25 @@ app.post("/api/ask-poke", async (c) => {
 });
 
 // ----------------------------------------------------------------------------
-// POST /mcp — MCP server (Poke agent integration)
+// /mcp — MCP server (Poke agent integration)
+// Supports POST (JSON-RPC) and GET (endpoint discovery)
 // ----------------------------------------------------------------------------
-app.post("/mcp", async (c) => {
+app.all("/mcp", async (c) => {
+  // Handle GET (Poke may probe the endpoint first)
+  if (c.req.method === "GET") {
+    return c.json({
+      name: "know-your-world-mcp",
+      version: "1.0.0",
+      protocol: "jsonrpc-2.0",
+      transport: "https",
+      tools: [
+        "get_player_progress",
+        "get_missed_questions",
+        "generate_practice_set",
+      ],
+    });
+  }
+  // Handle POST (JSON-RPC requests)
   return handleMcp(c.req.raw, c.env);
 });
 

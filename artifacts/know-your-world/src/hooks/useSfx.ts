@@ -431,8 +431,8 @@ export function useSfx() {
     streakRef.current = 0;
   }, []);
 
-  // Ambient background audio — low-volume whimsical loop
-  // Uses a slow arpeggio of sine waves at low gain
+  // Ambient background audio — Cloud Atlas Sextet
+  // Generates a warm, ethereal chord progression that loops seamlessly
   const ambientRef = useRef<{ stop: () => void } | null>(null);
   const [ambientOn, setAmbientOn] = useState(false);
 
@@ -441,46 +441,67 @@ export function useSfx() {
     const ac = getCtx();
     if (!ac) return;
 
-    // Low-volume slow arpeggio: C4 -> E4 -> G4 -> C5 -> G4 -> E4 (loop)
-    const notes = [NOTE.C4, NOTE.E4, NOTE.G4, NOTE.C5, NOTE.G4, NOTE.E4];
-    const noteDuration = 2.0; // 2 seconds per note
-    let startTime = ac.currentTime;
+    // Cloud Atlas Sextet chord progression (D minor key, modal)
+    // Each chord = 6 notes (sextet), 8 seconds per chord, 4 chords = 32s loop
+    const CHORDS: number[][] = [
+      [146.83, 174.61, 220.0, 261.63, 329.63, 392.0], // Dm9
+      [116.54, 146.83, 174.61, 220.0, 261.63, 329.63], // Bbmaj7
+      [87.31, 110.0, 130.81, 164.81, 196.0, 246.94], // Fmaj7
+      [98.0, 116.54, 146.83, 174.61, 220.0, 261.63], // Gm9
+    ];
+    const CHORD_DURATION = 8.0;
     const oscillators: OscillatorNode[] = [];
 
-    // Schedule the first loop, then reschedule via interval
     const scheduleLoop = (startT: number) => {
-      for (let i = 0; i < notes.length; i++) {
-        const osc = ac.createOscillator();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(notes[i], startT + i * noteDuration);
-        const gain = ac.createGain();
-        gain.gain.setValueAtTime(0, startT + i * noteDuration);
-        gain.gain.linearRampToValueAtTime(
-          0.04,
-          startT + i * noteDuration + 0.5,
-        );
-        gain.gain.linearRampToValueAtTime(
-          0,
-          startT + i * noteDuration + noteDuration - 0.3,
-        );
-        osc.connect(gain);
-        gain.connect(ac.destination);
-        osc.start(startT + i * noteDuration);
-        osc.stop(startT + i * noteDuration + noteDuration);
-        oscillators.push(osc);
+      for (let chordIdx = 0; chordIdx < CHORDS.length; chordIdx++) {
+        const chordStart = startT + chordIdx * CHORD_DURATION;
+        const chord = CHORDS[chordIdx];
+
+        for (let voiceIdx = 0; voiceIdx < chord.length; voiceIdx++) {
+          const osc = ac.createOscillator();
+          // Alternate between sine (warm) and triangle (bright) for sextet
+          osc.type = voiceIdx % 2 === 0 ? "sine" : "triangle";
+          osc.frequency.setValueAtTime(chord[voiceIdx], chordStart);
+
+          const gain = ac.createGain();
+          gain.gain.setValueAtTime(0, chordStart);
+          // Slow attack (2s) for warm pad sound
+          gain.gain.linearRampToValueAtTime(0.025, chordStart + 2.0);
+          // Sustain
+          gain.gain.setValueAtTime(0.025, chordStart + CHORD_DURATION - 2.0);
+          // Slow release (2s)
+          gain.gain.linearRampToValueAtTime(0, chordStart + CHORD_DURATION);
+
+          // Subtle vibrato for warmth
+          const vibrato = ac.createOscillator();
+          vibrato.frequency.value = 2.5 + voiceIdx * 0.2;
+          const vibratoGain = ac.createGain();
+          vibratoGain.gain.value = chord[voiceIdx] * 0.003;
+          vibrato.connect(vibratoGain);
+          vibratoGain.connect(osc.frequency);
+          vibrato.start(chordStart);
+          vibrato.stop(chordStart + CHORD_DURATION);
+          oscillators.push(vibrato);
+
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(chordStart);
+          osc.stop(chordStart + CHORD_DURATION);
+          oscillators.push(osc);
+        }
       }
-      return startT + notes.length * noteDuration;
+      return startT + CHORDS.length * CHORD_DURATION;
     };
 
-    let nextStart = scheduleLoop(startTime);
-    // Reschedule every 4 seconds to keep it going
+    let nextStart = scheduleLoop(ac.currentTime);
+    // Reschedule before the loop ends to create seamless playback
     const interval = setInterval(() => {
       const acNow = getCtx();
       if (!acNow || mutedRef.current) return;
-      if (acNow.currentTime >= nextStart - 4) {
+      if (acNow.currentTime >= nextStart - 10) {
         nextStart = scheduleLoop(nextStart);
       }
-    }, 4000);
+    }, 5000);
 
     ambientRef.current = {
       stop: () => {
