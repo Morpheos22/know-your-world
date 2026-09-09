@@ -205,7 +205,7 @@ async function callElevenLabs(
     },
     body: JSON.stringify({
       text,
-      model_id: "eleven_turbo_v2", // fast + multilingual
+      model_id: "eleven_flash_v2_5", // fastest model, lowest latency
       voice_settings: {
         // Lower stability (0.35) allows emotional variation — the voice
         // sounds happy, animated, and engaged rather than monotone.

@@ -134,9 +134,41 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
     [speak, buildQuestionText],
   );
 
+  /**
+   * Pre-fetch audio for a question without playing it.
+   * This warms the cache so when the player clicks play, the audio is instant.
+   * Called when a new question appears, pre-fetches in the background.
+   */
+  const prefetchQuestion = useCallback(
+    (question: string, options: string[], overrideVoiceId?: string) => {
+      const vId = overrideVoiceId ?? voiceId;
+      const fullText = buildQuestionText(question, options);
+      const cacheKey = `${vId}:${fullText}`;
+
+      // Skip if already cached
+      if (cacheRef.current.has(cacheKey)) return;
+
+      // Fire and forget — don't await, don't set loading state
+      fetch(`${API_BASE}/api/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: fullText, voiceId: vId }),
+      })
+        .then((resp) => resp.json())
+        .then((data: TtsResponse) => {
+          cacheRef.current.set(cacheKey, data.audio);
+        })
+        .catch(() => {
+          // Silent failure — pre-fetch is best-effort
+        });
+    },
+    [voiceId, buildQuestionText],
+  );
+
   return {
     speak,
     speakQuestion,
+    prefetchQuestion,
     stop,
     loading,
     error,
