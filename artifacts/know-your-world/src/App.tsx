@@ -1499,7 +1499,7 @@ function App() {
   const { submitScore, fetchLeaderboard } = useScores();
   const progress = useProgress();
   const { voiceId, setVoiceId } = useVoice();
-  const { user, isSignedIn, signOut, displayName } = useAuth();
+  const { user, isSignedIn, signOut, displayName, blocked } = useAuth();
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -1811,6 +1811,38 @@ function App() {
           style={{ textAlign: "center", paddingTop: 80 }}
         >
           Loading...
+        </div>
+      </div>
+    );
+  }
+
+  // Blocklist — access denied screen
+  if (blocked) {
+    return (
+      <div className="app-container">
+        <div className="screen screen-home blocked-screen">
+          <div className="blocked-icon">{"\u26D4"}</div>
+          <h1 className="blocked-title">Access Denied</h1>
+          <p className="blocked-message">
+            You do not have permission to access this platform.
+          </p>
+          <p className="blocked-contact">
+            To resolve this, contact the developer:
+          </p>
+          <div className="blocked-contact-info">
+            <p>Morpheos</p>
+            <p>
+              <a href="mailto:Morpheos@cc.cc">Morpheos@cc.cc</a>
+            </p>
+          </div>
+          <button
+            className="menu-btn blocked-signout-btn"
+            onClick={() => {
+              void signOut();
+            }}
+          >
+            Sign Out
+          </button>
         </div>
       </div>
     );

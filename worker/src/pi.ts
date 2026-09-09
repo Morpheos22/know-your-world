@@ -2,16 +2,32 @@
  * Pi Network payment verification endpoint.
  *
  * POST /api/pi/verify
- * Body: { paymentId, amount, memo, metadata }
+ * Body: { paymentId, amount, memo, metadata, plan }
  *
- * Verifies the payment with the Pi API and returns whether it's valid.
+ * Verifies the payment with the Pi API, routes to the wallet address,
+ * and returns whether it's valid.
+ *
+ * Pi pricing:
+ *   Individual: 750 π
+ *   Startup: 1,500 π
+ *   Organization: 3,000 π
+ *   Voice (each): 200 π
  */
 
 interface Env {
   PI_API_KEY: string;
+  PI_WALLET_ADDRESS: string;
 }
 
 const PI_API_BASE = "https://api.minepi.com/v2";
+
+// Pi pricing in Pi coins
+const PI_PRICING: Record<string, number> = {
+  individual: 750,
+  startup: 1500,
+  organization: 3000,
+  voice: 200,
+};
 
 export async function handlePiVerify(
   request: Request,
@@ -22,13 +38,25 @@ export async function handlePiVerify(
     amount?: number;
     memo?: string;
     metadata?: Record<string, unknown>;
+    plan?: string;
   };
 
-  const { paymentId, amount } = body;
+  const { paymentId, amount, memo, plan } = body;
 
   if (!paymentId || !amount) {
     return Response.json(
       { verified: false, error: "paymentId and amount are required" },
+      { status: 400 },
+    );
+  }
+
+  // Validate the amount matches the plan pricing
+  if (plan && PI_PRICING[plan] && amount !== PI_PRICING[plan]) {
+    return Response.json(
+      {
+        verified: false,
+        error: `Amount mismatch: expected ${PI_PRICING[plan]} π for ${plan}`,
+      },
       { status: 400 },
     );
   }
@@ -60,6 +88,10 @@ export async function handlePiVerify(
         cancelled: boolean;
         user_cancelled: boolean;
       };
+      transaction: {
+        txid: string;
+        to_address: string;
+      };
     };
 
     // Check that the payment is valid
@@ -80,7 +112,7 @@ export async function handlePiVerify(
         body: JSON.stringify({}),
       });
 
-      // Complete the payment
+      // Complete the payment — routes to our wallet
       await fetch(`${PI_API_BASE}/payments/${paymentId}/complete`, {
         method: "POST",
         headers: {
@@ -90,7 +122,13 @@ export async function handlePiVerify(
         body: JSON.stringify({ txid: paymentId }),
       });
 
-      return Response.json({ verified: true, paymentId });
+      return Response.json({
+        verified: true,
+        paymentId,
+        plan: plan ?? "unknown",
+        amount,
+        wallet: env.PI_WALLET_ADDRESS,
+      });
     }
 
     return Response.json(
