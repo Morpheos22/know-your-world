@@ -77,8 +77,7 @@ export function useAuth() {
         password,
         options: {
           emailRedirectTo: window.location.origin,
-          captchaToken: turnstileToken ?? undefined,
-        } as Record<string, unknown>,
+        },
       });
       if (err) {
         setError(err.message);
@@ -102,9 +101,6 @@ export function useAuth() {
       const { error: err } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          captchaToken: turnstileToken ?? undefined,
-        } as Record<string, unknown>,
       });
       if (err) {
         setError(err.message);

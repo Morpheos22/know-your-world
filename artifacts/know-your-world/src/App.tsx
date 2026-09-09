@@ -17,6 +17,7 @@ import { useVoice } from "./hooks/useVoice";
 import { VoicePicker } from "./components/VoicePicker";
 import { GlobeMiniGame } from "./components/GlobeMiniGame";
 import { AuthModal } from "./components/AuthModal";
+import { OnboardingModal } from "./components/OnboardingModal";
 import { LEGACY_VOICE, DEFAULT_VOICE_ID, getVoice } from "./data/voices";
 import { useAuth } from "./hooks/useAuth";
 
@@ -1502,6 +1503,14 @@ function App() {
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Show onboarding when user signs in for the first time
+  useEffect(() => {
+    if (isSignedIn && !sessionStorage.getItem("kyw_onboarded")) {
+      setShowOnboarding(true);
+    }
+  }, [isSignedIn]);
   // Legacy TTS instance for Morpheos voice (mini-game + failure screen)
   const legacyTts = useTts(LEGACY_VOICE.id);
   const [screen, setScreen] = useState<Screen>("home");
@@ -1916,6 +1925,23 @@ function App() {
 
       {showAuthModal && (
         <AuthModal onClose={() => setShowAuthModal(false)} play={play} />
+      )}
+
+      {showOnboarding && (
+        <OnboardingModal
+          onClose={() => {
+            sessionStorage.setItem("kyw_onboarded", "skip");
+            setShowOnboarding(false);
+          }}
+          onSelect={(plan) => {
+            play("click");
+            sessionStorage.setItem("kyw_onboarded", plan);
+            setShowOnboarding(false);
+            // Payment flow will be wired in next step
+            alert(`You selected ${plan}. Payment integration coming next!`);
+          }}
+          play={play}
+        />
       )}
 
       {showMiniGame && (

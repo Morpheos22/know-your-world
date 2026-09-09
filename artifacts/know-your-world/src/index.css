@@ -381,12 +381,16 @@ body {
 }
 
 .footer {
-  margin-top: auto;
-  text-align: right;
-  padding: 10px 20px;
+  margin-top: 20px;
+  text-align: center;
+  padding: 12px 20px;
   font-size: 0.7rem;
   color: #999;
   border-top: 1px solid #eee;
+  width: 100%;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .score-box {
@@ -1163,7 +1167,7 @@ body {
       rgba(200, 180, 100, 0.3) 0%,
       transparent 12%
     );
-  animation: globe-rotate 20s linear infinite;
+  animation: globe-rotate 6s linear 2;
 }
 .globe-meridians,
 .globe-parallels {
@@ -2219,4 +2223,109 @@ body {
   text-align: center;
   margin-top: 8px;
   font-family: "Poppins", sans-serif;
+}
+.auth-pi {
+  background: #fbc423;
+  color: #2f2f2f;
+  border-color: #fbc423;
+  font-weight: 600;
+}
+.auth-pi:hover:not(:disabled) {
+  background: #e6b320;
+}
+/* ============================================================================
+   ONBOARDING MODAL
+   ============================================================================ */
+.onboarding-modal {
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: center;
+}
+.onboarding-modal h2 {
+  font-family: "Fredoka", sans-serif;
+  margin-bottom: 8px;
+}
+.onboarding-subtitle {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+}
+.onboarding-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.onboarding-plan {
+  background: var(--bg-color);
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 16px;
+  padding: 16px 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    transform 0.15s ease;
+  text-align: center;
+}
+.onboarding-plan:hover {
+  transform: translateY(-2px);
+}
+.onboarding-plan-selected {
+  border-width: 3px;
+  background: var(--highlight);
+}
+.onboarding-plan-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+.onboarding-plan-name {
+  font-family: "Fredoka", sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-dark);
+  margin-bottom: 4px;
+}
+.onboarding-plan-price {
+  font-family: "Fredoka", sans-serif;
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+.onboarding-plan-features {
+  list-style: none;
+  padding: 0;
+  text-align: left;
+  font-size: 0.7rem;
+  color: var(--accent);
+  line-height: 1.5;
+}
+.onboarding-plan-features li {
+  margin-bottom: 4px;
+}
+.onboarding-actions {
+  margin-top: 16px;
+}
+.onboarding-disclaimer {
+  font-size: 0.7rem;
+  color: #888;
+  margin-bottom: 8px;
+  font-style: italic;
+}
+.onboarding-skip-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: "Poppins", sans-serif;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 12px;
+  text-decoration: underline;
+}
+
+@media (max-width: 380px) {
+  .onboarding-plans {
+    grid-template-columns: 1fr;
+  }
 }
