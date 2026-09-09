@@ -1,9 +1,13 @@
 /**
  * PokeGuide — "Amir" AI assistant widget on the landing page.
  *
- * Uses the Poke API (via Worker /api/ask-poke) to answer questions
- * and guide users through the platform. Responses are read aloud
- * using the TTS voice system with Amir's voice (Alisha — energetic Gen Z).
+ * Voice behavior:
+ *   - Amir does NOT auto-speak after every response
+ *   - A voice toggle (🔊/🔇) in the header controls whether Amir speaks
+ *   - Default: voice OFF (user must opt in)
+ *   - When voice is ON: each assistant message gets a 🔊 button next to it
+ *   - User clicks the 🔊 button to hear that specific message
+ *   - Voice toggle state persists in localStorage
  */
 import { useState, useRef, useEffect } from "react";
 import { useTts } from "../hooks/useTts";
@@ -12,9 +16,12 @@ const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
   "https://know-your-world-api.morphylee22.workers.dev";
 
+const VOICE_KEY = "kyw_amir_voice";
+
 interface Message {
   role: "user" | "assistant";
   text: string;
+  spoken?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -26,6 +33,7 @@ const SUGGESTIONS = [
 
 export function PokeGuide() {
   const [open, setOpen] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -34,12 +42,44 @@ export function PokeGuide() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const tts = useTts("amir");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Hydrate voice toggle from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(VOICE_KEY);
+      if (stored === "true") setVoiceEnabled(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist voice toggle
+  useEffect(() => {
+    try {
+      localStorage.setItem(VOICE_KEY, String(voiceEnabled));
+    } catch {
+      // ignore
+    }
+  }, [voiceEnabled]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const speakMessage = async (text: string, index: number) => {
+    // Toggle: if this message is currently playing, stop it
+    if (speakingIdx === index) {
+      tts.stop();
+      setSpeakingIdx(null);
+      return;
+    }
+    setSpeakingIdx(index);
+    await tts.speak(text, "amir");
+    setSpeakingIdx(null);
+  };
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
@@ -76,8 +116,13 @@ export function PokeGuide() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Read the response aloud using Amir's voice
-      void tts.speak(responseText, "amir");
+      // Only auto-speak if voice is explicitly enabled
+      if (voiceEnabled) {
+        const newIdx = messages.length + 1; // +1 for user message + new assistant
+        setSpeakingIdx(newIdx);
+        await tts.speak(responseText, "amir");
+        setSpeakingIdx(null);
+      }
     } catch {
       const fallback: Message = {
         role: "assistant",
@@ -109,13 +154,30 @@ export function PokeGuide() {
             <span className="poke-guide-title">
               {"\uD83C\uDF1F"} Amir · KYW Guide
             </span>
-            <button
-              className="poke-guide-close"
-              onClick={() => setOpen(false)}
-              aria-label="Close guide"
-            >
-              {"\u2193"}
-            </button>
+            <div className="poke-guide-header-actions">
+              {/* Voice toggle indicator */}
+              <button
+                className={`poke-guide-voice-toggle${voiceEnabled ? " active" : ""}`}
+                onClick={() => setVoiceEnabled(!voiceEnabled)}
+                aria-label={
+                  voiceEnabled ? "Disable Amir voice" : "Enable Amir voice"
+                }
+                title={
+                  voiceEnabled
+                    ? "Amir voice ON — click to mute"
+                    : "Amir voice OFF — click to enable"
+                }
+              >
+                {voiceEnabled ? "\uD83D\uDD0A" : "\uD83D\uDD07"}
+              </button>
+              <button
+                className="poke-guide-close"
+                onClick={() => setOpen(false)}
+                aria-label="Close guide"
+              >
+                {"\u2193"}
+              </button>
+            </div>
           </div>
 
           <div className="poke-guide-messages">
@@ -124,7 +186,20 @@ export function PokeGuide() {
                 key={i}
                 className={`poke-guide-message poke-guide-message-${msg.role}`}
               >
-                {msg.text}
+                <div className="poke-guide-message-text">{msg.text}</div>
+                {/* Voice indicator on each assistant message */}
+                {msg.role === "assistant" && (
+                  <button
+                    className={`poke-guide-speak-btn${speakingIdx === i ? " speaking" : ""}`}
+                    onClick={() => void speakMessage(msg.text, i)}
+                    aria-label={
+                      speakingIdx === i ? "Stop speaking" : "Play this message"
+                    }
+                    title={speakingIdx === i ? "Stop" : "Listen"}
+                  >
+                    {speakingIdx === i ? "\u23F9" : "\uD83D\uDC42"}
+                  </button>
+                )}
               </div>
             ))}
             {loading && (
