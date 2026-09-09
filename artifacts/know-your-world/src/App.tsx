@@ -15,6 +15,7 @@ import { useProgress } from "./hooks/useProgress";
 import { useTts } from "./hooks/useTts";
 import { useVoice } from "./hooks/useVoice";
 import { VoicePicker } from "./components/VoicePicker";
+import { GlobeMiniGame } from "./components/GlobeMiniGame";
 import { LEGACY_VOICE, DEFAULT_VOICE_ID, getVoice } from "./data/voices";
 
 const PASS_THRESHOLD = 4; // out of 8 questions (50% — facts don't count)
@@ -93,12 +94,36 @@ function MuteButton({
 // Globe — realistic CSS 3D globe with intriguing idle animation
 // ============================================================================
 
-function Globe() {
+function Globe({ onTriggerMiniGame }: { onTriggerMiniGame: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoldingRef = useRef(false);
+
+  const handlePointerDown = useCallback(() => {
+    isHoldingRef.current = true;
+    // After 3 seconds of holding, trigger the mini-game
+    holdTimerRef.current = setTimeout(() => {
+      if (isHoldingRef.current) {
+        onTriggerMiniGame();
+      }
+    }, 3000);
+  }, [onTriggerMiniGame]);
+
+  const handlePointerUp = useCallback(() => {
+    isHoldingRef.current = false;
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }, []);
+
+  // Quick tap animations (preserved from original)
   const tapCount = useRef(0);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleClick = useCallback(() => {
+    // Only do tap animations if it was a quick tap (not a hold)
+    if (isHoldingRef.current) return;
     const el = ref.current;
     if (!el) return;
     tapCount.current++;
@@ -117,7 +142,14 @@ function Globe() {
   }, []);
 
   return (
-    <div className="globe-stage" ref={ref} onClick={handleClick}>
+    <div
+      className="globe-stage"
+      ref={ref}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+    >
       <div className="globe-orb">
         <div className="globe-surface" />
         <div className="globe-meridians" />
@@ -203,9 +235,8 @@ const TIP_AMOUNTS = [
 function TipModal({ onClose }: { onClose: () => void }) {
   const [customAmount, setCustomAmount] = useState("");
 
-  // Stripe Payment Link — replace with your actual link
-  // Format: https://buy.stripe.com/your_payment_link_id
-  const STRIPE_TIP_LINK = "https://buy.stripe.com/your_tip_payment_link_here";
+  // Stripe Payment Link for tips
+  const STRIPE_TIP_LINK = "https://donate.stripe.com/28E28kg1gaWL8lXc28fbq00";
 
   const handleTip = (amountNaira: number) => {
     // For now, redirect to Stripe Payment Link
@@ -290,6 +321,7 @@ function HomeScreen({
   onStart,
   onShowLeaderboard,
   onShowVoicePicker,
+  onTriggerMiniGame,
   tracksCompleted,
   tracksStarted,
   play,
@@ -299,6 +331,7 @@ function HomeScreen({
   onStart: () => void;
   onShowLeaderboard: () => void;
   onShowVoicePicker: () => void;
+  onTriggerMiniGame: () => void;
   tracksCompleted: number;
   tracksStarted: number;
   play: (s: SoundName) => void;
@@ -350,7 +383,12 @@ function HomeScreen({
     <div className="screen screen-home">
       <div className="title-text">Know Your World</div>
       <div className="subtitle">V2 | World Edition</div>
-      <Globe />
+      <Globe
+        onTriggerMiniGame={() => {
+          play("click");
+          onTriggerMiniGame();
+        }}
+      />
 
       {!playerName ? (
         <div className="name-entry">
@@ -1433,6 +1471,9 @@ function App() {
   const progress = useProgress();
   const { voiceId, setVoiceId } = useVoice();
   const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [showMiniGame, setShowMiniGame] = useState(false);
+  // Legacy TTS instance for Morpheos voice (mini-game + failure screen)
+  const legacyTts = useTts(LEGACY_VOICE.id);
   const [screen, setScreen] = useState<Screen>("home");
   const [bgGradient, setBgGradient] = useState("none");
   const [gameState, setGameState] = useState<GameState>({
@@ -1759,6 +1800,7 @@ function App() {
               play("click");
               setShowVoicePicker(true);
             }}
+            onTriggerMiniGame={() => setShowMiniGame(true)}
             tracksCompleted={progress.tracksCompleted()}
             tracksStarted={progress.tracksStarted()}
             play={play}
@@ -1835,6 +1877,17 @@ function App() {
           onSelect={setVoiceId}
           onClose={() => setShowVoicePicker(false)}
           play={play}
+        />
+      )}
+
+      {showMiniGame && (
+        <GlobeMiniGame
+          active={showMiniGame}
+          onGlobeReturn={(saying) => {
+            // Morpheos voice triggers on globe return
+            void legacyTts.speak(saying, LEGACY_VOICE.id);
+          }}
+          onClose={() => setShowMiniGame(false)}
         />
       )}
 
