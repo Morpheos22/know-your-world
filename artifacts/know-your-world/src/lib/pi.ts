@@ -1,18 +1,10 @@
 /**
  * Pi Network integration — payment SDK + verification.
  *
- * Flow:
- *   1. User clicks "Pay with Pi"
- *   2. Frontend calls Pi SDK to create a payment
- *   3. User approves payment in Pi app
- *   4. Frontend sends payment to Worker for verification
- *   5. Worker verifies payment via Pi API
- *   6. On success, Worker updates user's plan/purchase in DB
+ * C1 FIX: /api/pi/verify now requires Supabase JWT. Uses authedFetch.
  */
 
-const PI_API_KEY =
-  (import.meta.env.VITE_PI_API_KEY as string | undefined) ??
-  "muzufcwftblghva94vckonhnkqkrmvmbbigtacwg1uwgismjcdnhjjg3c0scq3hl";
+import { authedFetch } from "./auth";
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -69,8 +61,8 @@ export async function createPiPayment(
       metadata,
     });
 
-    // Send payment to Worker for verification
-    const resp = await fetch(`${API_BASE}/api/pi/verify`, {
+    // Send payment to Worker for verification (C1 FIX: authedFetch)
+    const resp = await authedFetch(`${API_BASE}/api/pi/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -80,6 +72,13 @@ export async function createPiPayment(
         metadata,
       }),
     });
+
+    if (resp.status === 401) {
+      return { ok: false, error: "Please sign in to complete your purchase." };
+    }
+    if (resp.status === 403) {
+      return { ok: false, error: "Access denied." };
+    }
 
     const data = await resp.json();
     if (data.verified) {

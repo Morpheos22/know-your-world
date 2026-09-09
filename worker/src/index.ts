@@ -3,11 +3,16 @@
  *
  * Endpoints:
  *   GET  /api/healthz                  — health check
- *   POST /api/scores                   — submit a score
- *   GET  /api/leaderboards?...         — top N for a track
- *   POST /api/tts                      — text-to-speech (ElevenLabs + Workers AI fallback)
+ *   GET  /api/geo-check                 — geo-block check (frontend app-load)
+ *   POST /api/auth/check                — JWT verify + Turnstile + blocklist
+ *   POST /api/scores                    — submit a score (JWT required)
+ *   GET  /api/leaderboards?...          — top N for a track (public, rate-limited)
+ *   POST /api/tts                       — text-to-speech (JWT required)
+ *   POST /api/ask-poke                  — Amir chatbot (JWT required)
+ *   POST /api/pi/verify                 — Pi payment verification (JWT required)
  *
- * Stack: Hono + D1 (SQLite at the edge) + Workers AI. No auth — name-keyed.
+ * Stack: Hono + D1 (SQLite at the edge) + Workers AI.
+ * Auth: Supabase JWT verified server-side via JWKS (RS256).
  */
 
 import { Hono } from "hono";
@@ -16,6 +21,9 @@ import { sanitizeName } from "./profanity";
 import { generateTts } from "./tts";
 import { handleAskPoke } from "./poke";
 import { handlePiVerify } from "./pi";
+import { verifyAuth } from "./auth";
+import { findBlockInD1 } from "./blocklist";
+import { verifyTurnstileToken } from "./turnstile";
 
 // ============================================================================
 // Types
@@ -32,11 +40,13 @@ interface Env {
   TTS_CACHE_TTL: string;
   TTS_MAX_TEXT_LENGTH: string;
   POKE_API_KEY: string;
-  MCP_SHARED_SECRET: string;
   SUPABASE_SECRET_KEY: string;
+  SUPABASE_URL: string;
+  SUPABASE_ANON_JWT_AUD?: string;
   STRIPE_SECRET_KEY: string;
   TURNSTILE_SECRET: string;
   PI_API_KEY: string;
+  PI_WALLET_ADDRESS: string;
 }
 
 interface ScoreSubmission {
@@ -68,8 +78,22 @@ interface ScoreRow {
 // Validation
 // ============================================================================
 
-const CONTINENTS = new Set(["africa", "asia", "europe", "americas"]);
-const CATEGORIES = new Set(["capitals", "presidents", "flags", "currencies"]);
+const CONTINENTS = new Set([
+  "africa",
+  "asia",
+  "europe",
+  "americas",
+  "ai world",
+]);
+const CATEGORIES = new Set([
+  "capitals",
+  "presidents",
+  "flags",
+  "currencies",
+  "gen-ai",
+  "copilots",
+  "agents",
+]);
 const LEVELS = new Set(["easy", "medium", "hard"]);
 
 function validateTrack(
@@ -83,6 +107,23 @@ function validateTrack(
   return null;
 }
 
+/**
+ * L3 FIX: Hash the User-Agent header to an 8-char hex prefix.
+ * The raw UA string is PII (browser version, OS, device fingerprint).
+ * The hash is not reversible but sufficient for abuse analysis.
+ */
+async function hashUserAgent(ua: string | null): Promise<string | null> {
+  if (!ua) return null;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(ua);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = [...new Uint8Array(hashBuffer)];
+  return hashArray
+    .slice(0, 4)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function validateScorePayload(
   body: Partial<ScoreSubmission>,
 ): { ok: true; data: ScoreSubmission } | { ok: false; error: string } {
@@ -93,11 +134,9 @@ function validateScorePayload(
   const { name, continent, category, level, score, total, timeMs, passed } =
     body;
 
-  // Name
   const nameCheck = sanitizeName(String(name ?? ""));
   if (!nameCheck.ok) return { ok: false, error: nameCheck.error };
 
-  // Track
   const trackError = validateTrack(
     String(continent ?? ""),
     String(category ?? ""),
@@ -105,7 +144,6 @@ function validateScorePayload(
   );
   if (trackError) return { ok: false, error: trackError };
 
-  // Numeric fields
   const scoreNum = Number(score);
   const totalNum = Number(total);
   const timeMsNum = Number(timeMs);
@@ -122,8 +160,9 @@ function validateScorePayload(
   if (!Number.isFinite(timeMsNum) || timeMsNum < 0) {
     return { ok: false, error: "timeMs must be a non-negative number." };
   }
-  if (timeMsNum > 24 * 60 * 60 * 1000) {
-    return { ok: false, error: "timeMs exceeds 24 hours — looks invalid." };
+  // HARDENING: cap at 1 hour. An 8-question quiz should take minutes.
+  if (timeMsNum > 60 * 60 * 1000) {
+    return { ok: false, error: "timeMs exceeds 1 hour — looks invalid." };
   }
 
   return {
@@ -147,34 +186,174 @@ function validateScorePayload(
 
 const app = new Hono<{ Bindings: Env }>();
 
-// CORS — locked to the frontend origin set in wrangler.toml
+// H4 FIX: CORS — hard default to frontend origin, NEVER reflect requester origin.
+const ALLOWED_ORIGIN = "https://know-your-world.vercel.app";
+
 app.use(
   "/api/*",
   cors({
-    origin: (origin, c) => c.env.CORS_ORIGIN || origin,
+    origin: (_origin, c) => c.env.CORS_ORIGIN || ALLOWED_ORIGIN,
     allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    exposeHeaders: ["X-RateLimit-Remaining", "X-Request-Id"],
     maxAge: 86400,
   }),
 );
 
+// L4 + L7 + HARDENING: global security headers + request ID + Cache-Control on errors.
+app.use("*", async (c, next) => {
+  const reqId = c.req.header("x-request-id") ?? crypto.randomUUID();
+  c.header("X-Request-Id", reqId);
+  await next();
+  c.header(
+    "Strict-Transport-Security",
+    "max-age=63072000; includeSubDomains; preload",
+  );
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (c.res.status >= 400) {
+    c.header("Cache-Control", "no-store");
+  }
+});
+
 // ----------------------------------------------------------------------------
 // GET /api/healthz
+// L6 FIX: removed `time: Date.now()` (info leak).
 // ----------------------------------------------------------------------------
 app.get("/api/healthz", (c) => {
   return c.json({
     status: "ok",
     service: "know-your-world-api",
-    time: Date.now(),
   });
 });
 
 // ----------------------------------------------------------------------------
-// POST /api/scores
-// Body: ScoreSubmission
-// Returns: { id, rank, totalEntries, isHighScore, personalBest }
+// POST /api/auth/check — JWT verify + Turnstile + blocklist
+// M6 FIX: rate-limited (10/min per IP) + body size limit (2KB).
+// H5 FIX: server-side Turnstile verification.
+// G2 FIX: returns redirect URL for blocked users.
+// ----------------------------------------------------------------------------
+app.post("/api/auth/check", async (c) => {
+  // Body size limit
+  const authCheckContentLength = Number(c.req.header("content-length") ?? 0);
+  if (authCheckContentLength > 2048) {
+    return c.json({ error: "Request body too large" }, 413);
+  }
+
+  // Rate limit
+  const authCheckIp = getClientIp(c);
+  const authCheckAllowed = await checkRateLimit(
+    c.env.DB,
+    authCheckIp,
+    10,
+    60_000,
+    "auth-check",
+  );
+  if (!authCheckAllowed) {
+    return c.json(
+      { error: "Too many auth checks. Please wait a minute." },
+      429,
+    );
+  }
+
+  const authResult = await verifyAuth(c.req.raw, c.env);
+  if (!authResult.ok || !authResult.user) {
+    return c.json({ ok: false, error: authResult.error ?? "Unauthorized" }, 401);
+  }
+
+  // Turnstile verification (if token provided)
+  let turnstileToken: string | undefined;
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      turnstileToken?: string;
+    };
+    turnstileToken = body.turnstileToken;
+  } catch {
+    // body is optional
+  }
+
+  if (turnstileToken) {
+    const turnstileResult = await verifyTurnstileToken(
+      turnstileToken,
+      c.env.TURNSTILE_SECRET,
+      authCheckIp,
+    );
+    if (!turnstileResult.ok) {
+      return c.json(
+        { ok: false, error: `Captcha verification failed: ${turnstileResult.error ?? "unknown"}` },
+        403,
+      );
+    }
+  }
+
+  const block = await findBlockInD1(c.env.DB, authResult.user.email, authResult.user.fullName);
+  if (block) {
+    return c.json(
+      {
+        ok: true,
+        blocked: true,
+        redirect: "https://motionmuse.ai/explore",
+        user: { id: authResult.user.id },
+      },
+      403,
+    );
+  }
+  return c.json({
+    ok: true,
+    blocked: false,
+    user: {
+      id: authResult.user.id,
+      email: authResult.user.email,
+      fullName: authResult.user.fullName,
+    },
+  });
+});
+
+// ----------------------------------------------------------------------------
+// POST /api/scores — JWT required (C1 FIX)
 // ----------------------------------------------------------------------------
 app.post("/api/scores", async (c) => {
+  // C1 FIX: Require valid Supabase JWT
+  const authResult = await verifyAuth(c.req.raw, c.env);
+  if (!authResult.ok || !authResult.user) {
+    return c.json(
+      { error: "Authentication required. Please sign in." },
+      401,
+    );
+  }
+  // C4 FIX: Server-side blocklist enforcement
+  const block = await findBlockInD1(c.env.DB, authResult.user.email, authResult.user.fullName);
+  if (block) {
+    return c.json(
+      { ok: false, error: "Access denied.", redirect: "https://motionmuse.ai/explore" },
+      403,
+    );
+  }
+  const authenticatedUserId: string = authResult.user.id;
+
+  // Body size limit (L5)
+  const scoreContentLength = Number(c.req.header("content-length") ?? 0);
+  if (scoreContentLength > 2048) {
+    return c.json({ error: "Request body too large" }, 413);
+  }
+
+  // Rate limit: 5/min per IP
+  const clientIp = getClientIp(c);
+  const scoreAllowed = await checkRateLimit(
+    c.env.DB,
+    clientIp,
+    5,
+    60_000,
+    "scores",
+  );
+  if (!scoreAllowed) {
+    return c.json(
+      { error: "Too many score submissions. Please wait a minute." },
+      429,
+    );
+  }
+
   let body: Partial<ScoreSubmission>;
   try {
     body = await c.req.json();
@@ -188,17 +367,14 @@ app.post("/api/scores", async (c) => {
   }
   const data = validation.data;
 
-  // Check for existing best score for this name on this track.
-  // Same display name (case-insensitive) on the same track = same row, deduped
-  // by highest score. If the new score is higher, update; otherwise reject
-  // silently (return the existing best so the frontend can show "personal best").
+  // C1 FIX: dedupe by user_id (from JWT) instead of display name.
   const nameKey = data.name.toLowerCase();
   const existing = await c.env.DB.prepare(
     `SELECT id, score, time_ms, created_at FROM scores
-     WHERE name_key = ? AND continent = ? AND category = ? AND level = ?
+     WHERE user_id = ? AND continent = ? AND category = ? AND level = ?
      ORDER BY score DESC, time_ms ASC LIMIT 1`,
   )
-    .bind(nameKey, data.continent, data.category, data.level)
+    .bind(authenticatedUserId, data.continent, data.category, data.level)
     .first<{
       id: number;
       score: number;
@@ -210,9 +386,9 @@ app.post("/api/scores", async (c) => {
   let personalBest = data.score;
   let scoreId: number;
 
+  const uaHash = await hashUserAgent(c.req.header("user-agent") ?? null);
+
   if (existing) {
-    // Already have an entry. Update only if the new score is strictly higher,
-    // OR equal but faster.
     personalBest = Math.max(existing.score, data.score);
     if (
       data.score > existing.score ||
@@ -221,33 +397,33 @@ app.post("/api/scores", async (c) => {
       isHighScore = true;
       await c.env.DB.prepare(
         `UPDATE scores SET
-           name = ?, score = ?, total = ?, time_ms = ?, passed = ?, user_agent = ?, created_at = unixepoch()
+           name = ?, name_key = ?, score = ?, total = ?, time_ms = ?, passed = ?, ua_hash = ?, created_at = unixepoch()
          WHERE id = ?`,
       )
         .bind(
           data.name,
+          nameKey,
           data.score,
           data.total,
           data.timeMs,
           data.passed ? 1 : 0,
-          c.req.header("user-agent") ?? null,
+          uaHash,
           existing.id,
         )
         .run();
       scoreId = existing.id;
     } else {
-      // New score isn't better — keep the existing row, return its values.
       scoreId = existing.id;
       personalBest = existing.score;
     }
   } else {
-    // First entry for this name on this track — insert.
     isHighScore = true;
     const result = await c.env.DB.prepare(
-      `INSERT INTO scores (name, name_key, continent, category, level, score, total, time_ms, passed, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO scores (user_id, name, name_key, continent, category, level, score, total, time_ms, passed, ua_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
+        authenticatedUserId,
         data.name,
         nameKey,
         data.continent,
@@ -257,39 +433,37 @@ app.post("/api/scores", async (c) => {
         data.total,
         data.timeMs,
         data.passed ? 1 : 0,
-        c.req.header("user-agent") ?? null,
+        uaHash,
       )
       .run();
     scoreId = Number(result.meta.last_row_id);
   }
 
-  // Compute rank: how many scores are strictly better on this track?
-  // Tiebreak: faster time beats slower time at the same score.
-  const rankResult = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS count FROM scores
-     WHERE continent = ? AND category = ? AND level = ?
-       AND (score > ? OR (score = ? AND time_ms < ?))`,
-  )
-    .bind(
-      data.continent,
-      data.category,
-      data.level,
-      data.score,
-      data.score,
-      data.timeMs,
+  // PERF: parallel rank + total count
+  const [rankResult, totalResult] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM scores
+       WHERE continent = ? AND category = ? AND level = ?
+         AND (score > ? OR (score = ? AND time_ms < ?))`,
     )
-    .first<{ count: number }>();
+      .bind(
+        data.continent,
+        data.category,
+        data.level,
+        data.score,
+        data.score,
+        data.timeMs,
+      )
+      .first<{ count: number }>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM scores
+       WHERE continent = ? AND category = ? AND level = ?`,
+    )
+      .bind(data.continent, data.category, data.level)
+      .first<{ count: number }>(),
+  ]);
 
   const rank = (rankResult?.count ?? 0) + 1;
-
-  // Total entries on this track
-  const totalResult = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS count FROM scores
-     WHERE continent = ? AND category = ? AND level = ?`,
-  )
-    .bind(data.continent, data.category, data.level)
-    .first<{ count: number }>();
-
   const totalEntries = totalResult?.count ?? 0;
   const percentile =
     totalEntries > 0 ? Math.round((1 - (rank - 1) / totalEntries) * 100) : 100;
@@ -306,9 +480,25 @@ app.post("/api/scores", async (c) => {
 
 // ----------------------------------------------------------------------------
 // GET /api/leaderboards?continent=&category=&level=&limit=
-// Returns: { entries: [{ rank, name, score, total, timeMs, createdAt }], totalEntries }
+// L2 FIX: rate-limited (60/min per IP). PERF: parallel queries + edge cache.
 // ----------------------------------------------------------------------------
 app.get("/api/leaderboards", async (c) => {
+  // L2 FIX: rate limit
+  const lbIp = getClientIp(c);
+  const lbAllowed = await checkRateLimit(
+    c.env.DB,
+    lbIp,
+    60,
+    60_000,
+    "leaderboards",
+  );
+  if (!lbAllowed) {
+    return c.json(
+      { error: "Too many leaderboard requests. Please wait a minute." },
+      429,
+    );
+  }
+
   const continent = c.req.query("continent") ?? "";
   const category = c.req.query("category") ?? "";
   const level = c.req.query("level") ?? "";
@@ -319,16 +509,25 @@ app.get("/api/leaderboards", async (c) => {
 
   const limitNum = Math.min(Math.max(Number(limitParam) || 10, 1), 50);
 
-  const rows = await c.env.DB.prepare(
-    `SELECT name, score, total, time_ms, passed, created_at FROM scores
-     WHERE continent = ? AND category = ? AND level = ?
-     ORDER BY score DESC, time_ms ASC
-     LIMIT ?`,
-  )
-    .bind(continent, category, level, limitNum)
-    .all<ScoreRow>();
+  // PERF: parallel SELECT + COUNT
+  const [rows, totalResult] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT name, score, total, time_ms, passed, created_at FROM scores
+       WHERE continent = ? AND category = ? AND level = ?
+       ORDER BY score DESC, time_ms ASC
+       LIMIT ?`,
+    )
+      .bind(continent, category, level, limitNum)
+      .all<ScoreRow>(),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM scores
+       WHERE continent = ? AND category = ? AND level = ?`,
+    )
+      .bind(continent, category, level)
+      .first<{ count: number }>(),
+  ]);
 
-  const entries = (rows.results ?? []).map((row, idx) => ({
+  const entries = ((rows as { results?: ScoreRow[] }).results ?? []).map((row, idx) => ({
     rank: idx + 1,
     name: row.name,
     score: row.score,
@@ -338,84 +537,162 @@ app.get("/api/leaderboards", async (c) => {
     createdAt: row.created_at,
   }));
 
-  const totalResult = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS count FROM scores
-     WHERE continent = ? AND category = ? AND level = ?`,
-  )
-    .bind(continent, category, level)
-    .first<{ count: number }>();
-
-  return c.json({
-    track: { continent, category, level },
-    entries,
-    totalEntries: totalResult?.count ?? 0,
-  });
+  return c.json(
+    {
+      track: { continent, category, level },
+      entries,
+      totalEntries: totalResult?.count ?? 0,
+    },
+    200,
+    // PERF: edge cache leaderboards for 60s
+    { "Cache-Control": "public, max-age=60, stale-while-revalidate=300" },
+  );
 });
 
 // ----------------------------------------------------------------------------
-// POST /api/tts
-// Body: { text: string }
-// Returns: audio/mpeg (binary) on success, JSON error on failure
-//
-// Flow:
-//   1. Validate input (max 500 chars, non-empty, sanitize)
-//   2. Check D1 cache (tts_cache table) — if hit and not expired, return cached audio
-//   3. Cache miss → call ElevenLabs with Morpheos voice
-//   4. If ElevenLabs fails → fall back to Cloudflare Workers AI TTS
-//   5. Store result in D1 cache (30-day TTL)
-//   6. Return audio as base64 JSON (frontend decodes and plays)
-//
-// Rate limiting: per-IP, configurable via TTS_RATE_LIMIT env var (default 20/min)
+// Hybrid rate limiter: in-memory (fast) + D1 (cross-isolate)
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// In-memory rate limiter for TTS — per-IP, sliding 60-second window.
-// Workers isolates persist across requests, so this works for rate limiting
-// within a single isolate. For multi-isolate precision we'd need D1 or KV,
-// but for a kids' game this is sufficient and far cheaper than D1 queries.
-// ----------------------------------------------------------------------------
-const ttsRequestTimes = new Map<string, number[]>();
 
-function checkRateLimit(ip: string, limit: number, windowMs: number): boolean {
+const rateLimitMaps = new Map<string, Map<string, number[]>>();
+
+function checkRateLimitMemory(
+  ip: string,
+  limit: number,
+  windowMs: number,
+  namespace = "tts",
+): boolean {
+  const key = `${namespace}:${ip}`;
+  let limitMap = rateLimitMaps.get(namespace);
+  if (!limitMap) {
+    limitMap = new Map();
+    rateLimitMaps.set(namespace, limitMap);
+  }
+
   const now = Date.now();
-  const times = ttsRequestTimes.get(ip) ?? [];
-  // Filter to only timestamps within the window
+  const times = limitMap.get(key) ?? [];
   const recent = times.filter((t) => now - t < windowMs);
   if (recent.length >= limit) {
-    return false; // rate limited
+    return false;
   }
   recent.push(now);
-  ttsRequestTimes.set(ip, recent);
-  // Periodic cleanup: if the map is getting large, prune old entries
-  if (ttsRequestTimes.size > 1000) {
-    for (const [key, vals] of ttsRequestTimes) {
+  limitMap.set(key, recent);
+  if (limitMap.size > 500) {
+    for (const [k, vals] of limitMap) {
       const fresh = vals.filter((t) => now - t < windowMs);
       if (fresh.length === 0) {
-        ttsRequestTimes.delete(key);
+        limitMap.delete(k);
       } else {
-        ttsRequestTimes.set(key, fresh);
+        limitMap.set(k, fresh);
       }
     }
   }
   return true;
 }
 
+async function checkRateLimitD1(
+  db: D1Database,
+  ip: string,
+  limit: number,
+  windowMs: number,
+  namespace: string,
+): Promise<boolean> {
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = now - Math.floor(windowMs / 1000);
+
+  try {
+    // Count FIRST (before inserting). HARDENING: previous version inserted
+    // THEN counted, allowing limit+1 requests through.
+    const result = await db
+      .prepare(
+        `SELECT COUNT(*) as count FROM rate_limits
+       WHERE namespace = ? AND ip = ? AND created_at > ?`,
+      )
+      .bind(namespace, ip, windowStart)
+      .first<{ count: number }>();
+
+    const currentCount = result?.count ?? 0;
+    if (currentCount >= limit) {
+      if (Math.random() < 0.01) {
+        await db
+          .prepare(`DELETE FROM rate_limits WHERE created_at < ?`)
+          .bind(windowStart - 3600)
+          .run();
+      }
+      return false;
+    }
+
+    await db
+      .prepare(
+        `INSERT INTO rate_limits (namespace, ip, created_at) VALUES (?, ?, ?)`,
+      )
+      .bind(namespace, ip, now)
+      .run();
+
+    if (Math.random() < 0.01) {
+      await db
+        .prepare(`DELETE FROM rate_limits WHERE created_at < ?`)
+        .bind(windowStart - 3600)
+        .run();
+    }
+
+    return true;
+  } catch {
+    return true; // fail open for availability
+  }
+}
+
+async function checkRateLimit(
+  db: D1Database,
+  ip: string,
+  limit: number,
+  windowMs: number,
+  namespace = "tts",
+): Promise<boolean> {
+  if (!checkRateLimitMemory(ip, limit, windowMs, namespace)) {
+    return false;
+  }
+  if (Math.random() < 0.5) {
+    return await checkRateLimitD1(db, ip, limit, windowMs, namespace);
+  }
+  return true;
+}
+
+function getClientIp(c: { req: { header: (name: string) => string | undefined } }): string {
+  return (
+    c.req.header("cf-connecting-ip") ||
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown"
+  );
+}
+
 // ----------------------------------------------------------------------------
-// POST /api/tts
-// Body: { text: string }
-// Returns: { audio, contentType, provider, cached } on success
-//
-// Flow:
-//   1. Validate input (max 500 chars, non-empty)
-//   2. Rate limit check (per-IP, in-memory, configurable)
-//   3. Call generateTts() which checks D1 cache, then ElevenLabs, then Workers AI
-//
-// Security:
-//   - D1 parameterized queries prevent SQL injection
-//   - Text is not interpreted as HTML by the frontend (React escapes by default)
-//   - Audio is returned as base64 JSON, not executed
+// POST /api/tts — JWT required (M2 FIX), body limit (M3 FIX)
 // ----------------------------------------------------------------------------
 app.post("/api/tts", async (c) => {
-  let body: { text?: unknown };
+  // M3 FIX: body size limit
+  const ttsContentLength = Number(c.req.header("content-length") ?? 0);
+  if (ttsContentLength > 4096) {
+    return c.json({ error: "Request body too large" }, 413);
+  }
+
+  // M2 FIX: JWT required
+  const ttsAuth = await verifyAuth(c.req.raw, c.env);
+  if (!ttsAuth.ok || !ttsAuth.user) {
+    return c.json(
+      { error: "Authentication required. Please sign in." },
+      401,
+    );
+  }
+  const ttsBlock = await findBlockInD1(c.env.DB, ttsAuth.user.email, ttsAuth.user.fullName);
+  if (ttsBlock) {
+    return c.json(
+      { ok: false, error: "Access denied.", redirect: "https://motionmuse.ai/explore" },
+      403,
+    );
+  }
+  const ttsUserId = ttsAuth.user.id;
+
+  let body: { text?: unknown; voiceId?: unknown };
   try {
     body = await c.req.json();
   } catch {
@@ -433,47 +710,124 @@ app.post("/api/tts", async (c) => {
     return c.json({ error: `Text must be ${maxLen} characters or less.` }, 400);
   }
 
-  // Rate limiting: per-IP, in-memory sliding window
-  const clientIp =
-    c.req.header("cf-connecting-ip") ||
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown";
+  // Per-IP rate limit
+  const clientIp = getClientIp(c);
   const rateLimit = Number(c.env.TTS_RATE_LIMIT) || 20;
-  const allowed = checkRateLimit(clientIp, rateLimit, 60_000);
-  if (!allowed) {
+  const allowedByIp = await checkRateLimit(
+    c.env.DB,
+    clientIp,
+    rateLimit,
+    60_000,
+    "tts",
+  );
+  if (!allowedByIp) {
     return c.json(
       { error: "Too many audio requests. Please wait a minute and try again." },
       429,
     );
   }
 
-  // Extract voiceId from request body (defaults to "jessica" if not provided)
+  // M2 FIX: per-user rate limit (defeats VPN rotation)
+  const allowedByUser = await checkRateLimit(
+    c.env.DB,
+    `user:${ttsUserId}`,
+    rateLimit,
+    60_000,
+    "tts-user",
+  );
+  if (!allowedByUser) {
+    return c.json(
+      { error: "Too many audio requests from your account. Please wait a minute." },
+      429,
+    );
+  }
+
   const voiceId =
-    typeof (body as { voiceId?: unknown }).voiceId === "string"
-      ? (body as { voiceId: string }).voiceId
-      : "jessica";
+    typeof body.voiceId === "string" ? body.voiceId : "jessica";
 
   try {
     const result = await generateTts(c.env, text, voiceId);
     return c.json(result, 200, { "Cache-Control": "public, max-age=2592000" });
   } catch (err) {
-    console.error("TTS generation failed:", err);
+    console.error(
+      "TTS generation failed:",
+      err instanceof Error ? err.message : String(err),
+    );
     return c.json({ error: "Audio generation failed. Please try again." }, 502);
   }
 });
 
 // ----------------------------------------------------------------------------
-// POST /api/ask-poke — tutor endpoint (Poke agent integration)
+// POST /api/ask-poke — JWT required (C1 FIX)
 // ----------------------------------------------------------------------------
 app.post("/api/ask-poke", async (c) => {
-  return handleAskPoke(c.req.raw, c.env);
+  const pokeAuth = await verifyAuth(c.req.raw, c.env);
+  if (!pokeAuth.ok || !pokeAuth.user) {
+    return c.json(
+      { error: "Authentication required. Please sign in." },
+      401,
+    );
+  }
+  const pokeBlock = await findBlockInD1(c.env.DB, pokeAuth.user.email, pokeAuth.user.fullName);
+  if (pokeBlock) {
+    return c.json(
+      { ok: false, error: "Access denied.", redirect: "https://motionmuse.ai/explore" },
+      403,
+    );
+  }
+
+  // H2 FIX: rate limit
+  const pokeIp = getClientIp(c);
+  const pokeAllowed = await checkRateLimit(
+    c.env.DB,
+    pokeIp,
+    10,
+    60_000,
+    "poke",
+  );
+  if (!pokeAllowed) {
+    return c.json(
+      { error: "Too many requests to the guide. Please wait a minute." },
+      429,
+    );
+  }
+
+  // L5 FIX: body size limit
+  const pokeContentLength = Number(c.req.header("content-length") ?? 0);
+  if (pokeContentLength > 4096) {
+    return c.json({ error: "Request body too large" }, 413);
+  }
+
+  return handleAskPoke(c.req.raw, {
+    ...c.env,
+    userId: pokeAuth.user.id,
+    userEmail: pokeAuth.user.email ?? undefined,
+    userFullName: pokeAuth.user.fullName ?? undefined,
+  });
 });
 
 // ----------------------------------------------------------------------------
-// POST /api/pi/verify — Pi Network payment verification
+// POST /api/pi/verify — JWT required (C1 FIX)
 // ----------------------------------------------------------------------------
 app.post("/api/pi/verify", async (c) => {
-  return handlePiVerify(c.req.raw, c.env);
+  const piAuth = await verifyAuth(c.req.raw, c.env);
+  if (!piAuth.ok || !piAuth.user) {
+    return c.json(
+      { error: "Authentication required. Please sign in." },
+      401,
+    );
+  }
+  const piBlock = await findBlockInD1(c.env.DB, piAuth.user.email, piAuth.user.fullName);
+  if (piBlock) {
+    return c.json(
+      { ok: false, error: "Access denied.", redirect: "https://motionmuse.ai/explore" },
+      403,
+    );
+  }
+  return handlePiVerify(c.req.raw, {
+    ...c.env,
+    userId: piAuth.user.id,
+  });
 });
 
 // ----------------------------------------------------------------------------

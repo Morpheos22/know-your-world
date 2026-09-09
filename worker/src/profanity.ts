@@ -141,8 +141,17 @@ export function containsProfanity(input: string): boolean {
 export function sanitizeName(
   raw: string,
 ): { ok: true; name: string } | { ok: false; error: string } {
-  // Trim and collapse internal whitespace
-  const trimmed = (raw ?? "").trim().replace(/\s+/g, " ");
+  // Trim and collapse internal whitespace.
+  // HARDENING: also strip Unicode control characters and bidi overrides
+  // that could disguise profanity or mess up leaderboard rendering
+  // (e.g., U+202E RIGHT-TO-LEFT OVERRIDE makes "god" display as "dog").
+  const trimmed = (raw ?? "")
+    // Strip control chars (except tab/newline which the next line handles)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "")
+    // Strip bidi overrides and zero-width chars (homoglyph attack vectors)
+    .replace(/[\u200B-\u200D\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
+    .trim()
+    .replace(/\s+/g, " ");
   if (trimmed.length === 0) {
     return { ok: false, error: "Please enter your name, explorer!" };
   }

@@ -1,10 +1,10 @@
 /**
  * usePoke — Poke agent integration hook.
  *
- * - askPoke(): sends a missed question to Poke for tutoring
- * - Records the mistake in D1 via the Worker endpoint
+ * C1 FIX: /api/ask-poke now requires Supabase JWT. Uses authedFetch.
  */
 import { useState } from "react";
+import { authedFetch, authErrorMessage } from "../lib/auth";
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -27,17 +27,23 @@ export function usePoke() {
     correctAnswer: string;
     category: string;
     continent: string;
+    level?: "easy" | "medium" | "hard";
   }): Promise<void> => {
     setLoading(true);
     setError(null);
     setResponse(null);
 
     try {
-      const resp = await fetch(`${API_BASE}/api/ask-poke`, {
+      const resp = await authedFetch(`${API_BASE}/api/ask-poke`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
       });
+
+      if (resp.status === 401 || resp.status === 403) {
+        setError(authErrorMessage(resp.status) ?? "Please sign in.");
+        return;
+      }
 
       const data = (await resp.json()) as PokeResponse;
       if (data.ok) {

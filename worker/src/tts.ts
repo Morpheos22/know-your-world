@@ -54,6 +54,8 @@ const VOICE_MAP: Record<string, string> = {
   david: "J6fZJ9oZVkfNAzrfGJiQ",
   // Legacy
   morpheos: "FneGH0QzKZCLmpj2XRD9",
+  // Guide (Amir) — uses Alisha's voice ID (warm, expressive)
+  amir: "x60qi81yLOkhyoqo0iH2",
 };
 
 /** Default voice if none specified or unrecognized */
@@ -94,8 +96,15 @@ export async function generateTts(
   text: string,
   voiceId: string = "jessica",
 ): Promise<TtsResult> {
-  // Resolve the ElevenLabs voice ID from our voice ID
-  const elevenLabsVoiceId = VOICE_MAP[voiceId] ?? DEFAULT_ELEVENLABS_VOICE;
+  // M2 FIX: Validate voiceId against VOICE_MAP — reject unknown IDs
+  // instead of defaulting to Jessica (prevents cache pollution).
+  if (!VOICE_MAP[voiceId]) {
+    throw new Error(
+      `Unknown voiceId: ${voiceId}. Valid IDs: ${Object.keys(VOICE_MAP).join(", ")}`,
+    );
+  }
+
+  const elevenLabsVoiceId = VOICE_MAP[voiceId];
 
   // Cache key includes voice ID so different voices are cached separately
   const cacheKey = `${voiceId}:${text}`;
@@ -175,6 +184,18 @@ export async function generateTts(
     console.warn(
       `TTS cache write failed: ${err instanceof Error ? err.message : String(err)}`,
     );
+  }
+
+  // L9 FIX: opportunistic cleanup of expired cache entries. 1% chance per
+  // cache miss — best-effort, non-fatal on failure.
+  if (Math.random() < 0.01) {
+    try {
+      await env.DB.prepare(`DELETE FROM tts_cache WHERE created_at < ?`)
+        .bind(cacheCutoff)
+        .run();
+    } catch {
+      // Non-fatal — cleanup is best-effort
+    }
   }
 
   return {

@@ -19,6 +19,7 @@ import { GlobeMiniGame } from "./components/GlobeMiniGame";
 import { AuthModal } from "./components/AuthModal";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { OnboardingFlow } from "./components/OnboardingFlow";
+import { PokeGuide } from "./components/PokeGuide";
 import { LEGACY_VOICE, DEFAULT_VOICE_ID, getVoice } from "./data/voices";
 import { useAuth } from "./hooks/useAuth";
 
@@ -1984,6 +1985,9 @@ function App() {
           onClose={() => setShowMiniGame(false)}
         />
       )}
+
+      {/* Amir chatbot guide — floating bubble on every screen */}
+      <PokeGuide />
 
       {showResult && (
         <ResultModal

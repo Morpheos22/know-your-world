@@ -1,16 +1,12 @@
 /**
  * useScores — API client for the Know Your World backend.
  *
- * Wraps the three endpoints on the Cloudflare Worker:
- *   POST /api/scores         — submit a score
- *   GET  /api/leaderboards   — fetch top N for a track
- *
- * Also handles the category-name mapping between frontend enums
- * (Countries, Presidents, Flags, Currencies) and backend enums
- * (capitals, presidents, flags, currencies).
+ * C1 FIX: POST /api/scores now requires Supabase JWT. We use authedFetch
+ * to inject the Authorization header. GET /api/leaderboards stays public.
  */
 import { useCallback, useState } from "react";
 import type { Continent, Category } from "../data/types";
+import { authedFetch, authErrorMessage } from "../lib/auth";
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -124,16 +120,17 @@ export function useScores(): UseScoresResult {
           timeMs: params.timeMs,
           passed: params.passed,
         };
-        const resp = await fetch(`${API_BASE}/api/scores`, {
+        const resp = await authedFetch(`${API_BASE}/api/scores`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         if (!resp.ok) {
           const body = await resp.json().catch(() => ({}));
+          const authErr = authErrorMessage(resp.status);
           return {
             ok: false,
-            error: body.error ?? `Server error (${resp.status})`,
+            error: authErr ?? body.error ?? `Server error (${resp.status})`,
           };
         }
         const data = (await resp.json()) as ScoreSubmissionResult;

@@ -28,6 +28,14 @@ TTS_RATE_LIMIT = "20"
 TTS_CACHE_TTL = "2592000"
 # Max text length for TTS
 TTS_MAX_TEXT_LENGTH = "500"
+# C1 FIX: Supabase project URL (used to fetch JWKS for JWT verification).
+SUPABASE_URL = "https://cwwhyufeviblebpoigqn.supabase.co"
 
 # Secrets (set via `npx wrangler secret put <NAME>`):
 # - ELEVENLABS_API_KEY — the sk_ API key for ElevenLabs
+# - POKE_API_KEY — Bearer token for the Poke agent endpoint
+# - SUPABASE_SECRET_KEY — server-to-server Supabase key (reserved for future admin ops)
+# - STRIPE_SECRET_KEY — server-to-server Stripe key (tips/payments)
+# - TURNSTILE_SECRET — Cloudflare Turnstile server-side verification secret
+# - PI_API_KEY — Pi Network API key for payment verification
+# - PI_WALLET_ADDRESS — wallet address that receives Pi payments

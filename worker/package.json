@@ -9,8 +9,10 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:create": "wrangler d1 create know-your-world-db",
-    "db:migrate": "wrangler d1 execute know-your-world-db --remote --file=./schema.sql",
-    "db:migrate:local": "wrangler d1 execute know-your-world-db --local --file=./schema.sql",
+    "db:migrate": "wrangler d1 execute know-your-world-db --remote --file=./schema.sql && npm run db:migrate:additive",
+    "db:migrate:local": "wrangler d1 execute know-your-world-db --local --file=./schema.sql && npm run db:migrate:additive:local",
+    "db:migrate:additive": "for f in migrations/*.sql; do echo \"Applying $f...\"; wrangler d1 execute know-your-world-db --remote --file=\"$f\" 2>&1 | grep -v 'duplicate column name' || true; done",
+    "db:migrate:additive:local": "for f in migrations/*.sql; do echo \"Applying $f...\"; wrangler d1 execute know-your-world-db --local --file=\"$f\" 2>&1 | grep -v 'duplicate column name' || true; done",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

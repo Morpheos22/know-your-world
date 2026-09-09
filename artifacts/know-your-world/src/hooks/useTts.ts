@@ -1,15 +1,11 @@
 /**
  * useTts — text-to-speech hook for the quiz game.
  *
- * Playback flow:
- *   - Click listen button → plays (if not already playing this text)
- *   - Click again → stops
- *   - When question changes → stops automatically
- *
- * Accepts a voiceId to select which ElevenLabs voice to use.
+ * M2 FIX: /api/tts now requires Supabase JWT. Uses authedFetch.
  */
 import { useCallback, useRef, useState } from "react";
 import { DEFAULT_VOICE_ID } from "../data/voices";
+import { authedFetch, authErrorMessage } from "../lib/auth";
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -75,7 +71,7 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
       if (!audioBase64) {
         setLoading(true);
         try {
-          const resp = await fetch(`${API_BASE}/api/tts`, {
+          const resp = await authedFetch(`${API_BASE}/api/tts`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text, voiceId: vId }),
@@ -83,7 +79,10 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
 
           if (!resp.ok) {
             const body = await resp.json().catch(() => ({}));
-            throw new Error(body.error ?? `Server error (${resp.status})`);
+            const authErr = authErrorMessage(resp.status);
+            throw new Error(
+              authErr ?? body.error ?? `Server error (${resp.status})`,
+            );
           }
 
           const data = (await resp.json()) as TtsResponse;
@@ -148,8 +147,9 @@ export function useTts(voiceId: string = DEFAULT_VOICE_ID) {
       // Skip if already cached
       if (cacheRef.current.has(cacheKey)) return;
 
-      // Fire and forget — don't await, don't set loading state
-      fetch(`${API_BASE}/api/tts`, {
+      // Fire and forget — don't await, don't set loading state.
+      // M2 FIX: use authedFetch so /api/tts gets the JWT.
+      authedFetch(`${API_BASE}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: fullText, voiceId: vId }),
