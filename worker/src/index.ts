@@ -37,6 +37,7 @@ interface Env {
   STRIPE_SECRET_KEY: string;
   TURNSTILE_SECRET: string;
   PI_API_KEY: string;
+  PI_WALLET_ADDRESS: string;
 }
 
 interface ScoreSubmission {
@@ -189,6 +190,19 @@ app.get("/api/healthz", (c) => {
 // Returns: { id, rank, totalEntries, isHighScore, personalBest }
 // ----------------------------------------------------------------------------
 app.post("/api/scores", async (c) => {
+  // Rate limiting: 5 score submissions per IP per minute
+  const clientIp =
+    c.req.header("cf-connecting-ip") ||
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+  const scoreAllowed = checkRateLimit(clientIp, 5, 60_000, "scores");
+  if (!scoreAllowed) {
+    return c.json(
+      { error: "Too many score submissions. Please wait a minute." },
+      429,
+    );
+  }
+
   let body: Partial<ScoreSubmission>;
   try {
     body = await c.req.json();
@@ -387,26 +401,39 @@ app.get("/api/leaderboards", async (c) => {
 // within a single isolate. For multi-isolate precision we'd need D1 or KV,
 // but for a kids' game this is sufficient and far cheaper than D1 queries.
 // ----------------------------------------------------------------------------
-const ttsRequestTimes = new Map<string, number[]>();
+// Rate limit maps — keyed by namespace:ip for separate rate limits
+const rateLimitMaps = new Map<string, Map<string, number[]>>();
 
-function checkRateLimit(ip: string, limit: number, windowMs: number): boolean {
+function checkRateLimit(
+  ip: string,
+  limit: number,
+  windowMs: number,
+  namespace = "tts",
+): boolean {
+  const key = `${namespace}:${ip}`;
+  let limitMap = rateLimitMaps.get(namespace);
+  if (!limitMap) {
+    limitMap = new Map();
+    rateLimitMaps.set(namespace, limitMap);
+  }
+
   const now = Date.now();
-  const times = ttsRequestTimes.get(ip) ?? [];
+  const times = limitMap.get(key) ?? [];
   // Filter to only timestamps within the window
   const recent = times.filter((t) => now - t < windowMs);
   if (recent.length >= limit) {
     return false; // rate limited
   }
   recent.push(now);
-  ttsRequestTimes.set(ip, recent);
+  limitMap.set(key, recent);
   // Periodic cleanup: if the map is getting large, prune old entries
-  if (ttsRequestTimes.size > 1000) {
-    for (const [key, vals] of ttsRequestTimes) {
+  if (limitMap.size > 1000) {
+    for (const [k, vals] of limitMap) {
       const fresh = vals.filter((t) => now - t < windowMs);
       if (fresh.length === 0) {
-        ttsRequestTimes.delete(key);
+        limitMap.delete(k);
       } else {
-        ttsRequestTimes.set(key, fresh);
+        limitMap.set(k, fresh);
       }
     }
   }
@@ -453,7 +480,7 @@ app.post("/api/tts", async (c) => {
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
   const rateLimit = Number(c.env.TTS_RATE_LIMIT) || 20;
-  const allowed = checkRateLimit(clientIp, rateLimit, 60_000);
+  const allowed = checkRateLimit(clientIp, rateLimit, 60_000, "tts");
   if (!allowed) {
     return c.json(
       { error: "Too many audio requests. Please wait a minute and try again." },
