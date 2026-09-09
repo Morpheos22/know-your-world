@@ -25,12 +25,13 @@ export function OnboardingModal({
       id: "individual" as const,
       name: "Individual",
       price: "\u20A65,000",
+      piPrice: "750 \u03C0",
       icon: "\uD83C\uDF93",
       features: [
         "Full access to pro voices (30%)",
         "Global leaderboard ranking",
         "Cloud Atlas Sextet ambient music",
-        "Additional voices: \u20A6500 each",
+        "Additional voices: \u20A6500 / 200\u03C0 each",
       ],
       color: "#4da6ff",
     },
@@ -38,6 +39,7 @@ export function OnboardingModal({
       id: "startup" as const,
       name: "Startup",
       price: "\u20A612,000",
+      piPrice: "1,500 \u03C0",
       icon: "\uD83D\uDD25",
       features: [
         "Everything in Individual",
@@ -52,6 +54,7 @@ export function OnboardingModal({
       id: "organization" as const,
       name: "Organization",
       price: "\u20A617,000",
+      piPrice: "3,000 \u03C0",
       icon: "\uD83C\uDFE2",
       features: [
         "Full access to ALL pro voices",
@@ -88,6 +91,7 @@ export function OnboardingModal({
               <div className="onboarding-plan-icon">{plan.icon}</div>
               <div className="onboarding-plan-name">{plan.name}</div>
               <div className="onboarding-plan-price">{plan.price}</div>
+              <div className="onboarding-plan-pi">or {plan.piPrice}</div>
               <ul className="onboarding-plan-features">
                 {plan.features.map((feature, i) => (
                   <li key={i}>

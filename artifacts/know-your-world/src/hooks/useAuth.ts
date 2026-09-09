@@ -23,24 +23,43 @@ export function getTurnstileToken(): string | null {
   return turnstileToken;
 }
 
+// Blocklist — users who are denied access
+const BLOCKED_NAMES = ["faiza fadipe", "faiza", "fadipe"];
+const BLOCKED_EMAILS = ["faizafadipe1@gmail.com"];
+
+function isUserBlocked(user: User | null): boolean {
+  if (!user) return false;
+  const email = (user.email ?? "").toLowerCase();
+  const fullName = (user.user_metadata?.full_name ?? "").toLowerCase();
+
+  if (BLOCKED_EMAILS.includes(email)) return true;
+  if (BLOCKED_NAMES.some((name) => fullName.includes(name))) return true;
+  return false;
+}
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
+      const currentUser = data.session?.user ?? null;
       setSession(data.session);
-      setUser(data.session?.user ?? null);
+      setUser(currentUser);
+      setBlocked(isUserBlocked(currentUser));
       setLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      const currentUser = newSession?.user ?? null;
       setSession(newSession);
-      setUser(newSession?.user ?? null);
+      setUser(currentUser);
+      setBlocked(isUserBlocked(currentUser));
       setLoading(false);
     });
 
@@ -127,7 +146,8 @@ export function useAuth() {
     signUpWithEmail,
     signInWithEmail,
     signOut,
-    isSignedIn: !!session,
+    isSignedIn: !!session && !blocked,
+    blocked,
     displayName: user?.user_metadata?.full_name ?? user?.email ?? null,
   };
 }
