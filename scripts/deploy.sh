@@ -39,15 +39,22 @@ fi
 if [ "$goto_smoke" -eq 0 ]; then
   log "Verifying wrangler authentication..."
   if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    # Run whoami and look for actual failure markers (not the version-warning "ERROR")
     whoami_output=$(npx wrangler whoami 2>&1 || true)
-    if echo "$whoami_output" | grep -qi "Invalid access token\|Too many authentication failures\|not authenticated\|ERROR"; then
+    if echo "$whoami_output" | grep -qi "Invalid access token\|Too many authentication failures\|not authenticated\|Authentication error\|⛔"; then
       err "CLOUDFLARE_API_TOKEN is set but invalid:"
-      echo "$whoami_output" | grep -E "ERROR|Invalid|failures" | head -3
+      echo "$whoami_output" | grep -E "Invalid|failures|Authentication" | head -3
+      exit 1
+    fi
+    # Also confirm we see the "logged in" / "Account" success marker
+    if ! echo "$whoami_output" | grep -qi "logged in\|Account ID\|Account Name"; then
+      err "CLOUDFLARE_API_TOKEN didn't return a valid account:"
+      echo "$whoami_output" | tail -10
       exit 1
     fi
     ok "CLOUDFLARE_API_TOKEN is set and valid"
   else
-    if ! npx wrangler whoami 2>&1 | grep -qi "logged in\|Token\|account id"; then
+    if ! npx wrangler whoami 2>&1 | grep -qi "logged in\|Account ID\|account id"; then
       err "Wrangler is not authenticated."
       echo "  Run: npx wrangler login  OR  CLOUDFLARE_API_TOKEN=xxx ./scripts/deploy.sh"
       exit 1

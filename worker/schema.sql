@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS scores (
 CREATE INDEX IF NOT EXISTS idx_scores_track_score ON scores (continent, category, level, score DESC, time_ms ASC);
 CREATE INDEX IF NOT EXISTS idx_scores_name_track ON scores (name_key, continent, category, level, score DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_name_recent ON scores (name_key, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_scores_user_track ON scores (user_id, continent, category, level, score DESC, time_ms ASC);
+-- idx_scores_user_track is created by migration 0001 (it references the
+-- user_id column which may not exist on legacy databases yet).
 
 -- ============================================================================
 -- blocklist — server-side blocklist (C4 FIX)
