@@ -18,6 +18,7 @@ import { VoicePicker } from "./components/VoicePicker";
 import { GlobeMiniGame } from "./components/GlobeMiniGame";
 import { AuthModal } from "./components/AuthModal";
 import { OnboardingModal } from "./components/OnboardingModal";
+import { OnboardingFlow } from "./components/OnboardingFlow";
 import { LEGACY_VOICE, DEFAULT_VOICE_ID, getVoice } from "./data/voices";
 import { useAuth } from "./hooks/useAuth";
 
@@ -1960,17 +1961,14 @@ function App() {
       )}
 
       {showOnboarding && (
-        <OnboardingModal
-          onClose={() => {
-            sessionStorage.setItem("kyw_onboarded", "skip");
-            setShowOnboarding(false);
-          }}
-          onSelect={(plan) => {
-            play("click");
+        <OnboardingFlow
+          onComplete={(plan) => {
             sessionStorage.setItem("kyw_onboarded", plan);
             setShowOnboarding(false);
-            // Payment flow will be wired in next step
-            alert(`You selected ${plan}. Payment integration coming next!`);
+          }}
+          onSkip={() => {
+            sessionStorage.setItem("kyw_onboarded", "skip");
+            setShowOnboarding(false);
           }}
           play={play}
         />
