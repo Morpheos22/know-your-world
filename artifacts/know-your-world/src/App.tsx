@@ -16,7 +16,9 @@ import { useTts } from "./hooks/useTts";
 import { useVoice } from "./hooks/useVoice";
 import { VoicePicker } from "./components/VoicePicker";
 import { GlobeMiniGame } from "./components/GlobeMiniGame";
+import { AuthModal } from "./components/AuthModal";
 import { LEGACY_VOICE, DEFAULT_VOICE_ID, getVoice } from "./data/voices";
+import { useAuth } from "./hooks/useAuth";
 
 const PASS_THRESHOLD = 4; // out of 8 questions (50% — facts don't count)
 
@@ -322,6 +324,10 @@ function HomeScreen({
   onShowLeaderboard,
   onShowVoicePicker,
   onTriggerMiniGame,
+  onShowAuth,
+  isSignedIn,
+  authDisplayName,
+  onSignOut,
   tracksCompleted,
   tracksStarted,
   play,
@@ -332,13 +338,16 @@ function HomeScreen({
   onShowLeaderboard: () => void;
   onShowVoicePicker: () => void;
   onTriggerMiniGame: () => void;
+  onShowAuth: () => void;
+  isSignedIn: boolean;
+  authDisplayName: string | null;
+  onSignOut: () => void;
   tracksCompleted: number;
   tracksStarted: number;
   play: (s: SoundName) => void;
 }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [showProModal, setShowProModal] = useState(false);
   const [showTipModal, setShowTipModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -390,6 +399,37 @@ function HomeScreen({
         }}
       />
 
+      {/* Auth status bar — always visible */}
+      {isSignedIn ? (
+        <div className="home-auth-bar">
+          <span className="home-auth-user">
+            {"\u2705"} {authDisplayName}
+          </span>
+          <button
+            className="home-auth-signout"
+            onClick={() => {
+              play("click");
+              onSignOut();
+            }}
+          >
+            Sign Out
+          </button>
+        </div>
+      ) : (
+        <div className="home-auth-bar">
+          <button
+            className="home-link-btn home-auth-btn"
+            onClick={() => {
+              play("click");
+              onShowAuth();
+            }}
+          >
+            {"\u2728"} Sign Up / Sign In
+          </button>
+          <span className="home-pro-badge">PRO</span>
+        </div>
+      )}
+
       {!playerName ? (
         <div className="name-entry">
           <label htmlFor="player-name" className="name-label">
@@ -421,6 +461,20 @@ function HomeScreen({
           >
             Let's Go!
           </button>
+          <div className="home-link-row">
+            <button className="home-link-btn" onClick={onShowVoicePicker}>
+              {"\uD83C\uDFA4"} Voice
+            </button>
+            <button
+              className="home-link-btn"
+              onClick={() => {
+                play("click");
+                setShowTipModal(true);
+              }}
+            >
+              {"\uD83D\uDC4D"} Tip
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -459,18 +513,6 @@ function HomeScreen({
               {"\uD83C\uDFC6"} Leaderboard
             </button>
           </div>
-          <div className="home-pro-row">
-            <button
-              className="home-link-btn"
-              onClick={() => {
-                play("click");
-                setShowProModal(true);
-              }}
-            >
-              {"\u2728"} Sign Up / Sign In
-            </button>
-            <span className="home-pro-badge">PRO</span>
-          </div>
           <div className="home-link-row">
             <button className="home-link-btn" onClick={onShowVoicePicker}>
               {"\uD83C\uDFA4"} Voice
@@ -503,23 +545,6 @@ function HomeScreen({
         <br />
         {new Date().getFullYear()}
       </div>
-
-      {showProModal && (
-        <ProDisclaimerModal
-          onProceed={() => {
-            play("click");
-            setShowProModal(false);
-            // Onboarding flow will be implemented in Phase 4
-            alert(
-              "Onboarding flow coming in Phase 4! Auth + payments will be wired up then.",
-            );
-          }}
-          onDecline={() => {
-            play("click");
-            setShowProModal(false);
-          }}
-        />
-      )}
 
       {showTipModal && (
         <TipModal
@@ -1470,8 +1495,10 @@ function App() {
   const { submitScore, fetchLeaderboard } = useScores();
   const progress = useProgress();
   const { voiceId, setVoiceId } = useVoice();
+  const { user, isSignedIn, signOut, displayName } = useAuth();
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   const [showMiniGame, setShowMiniGame] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   // Legacy TTS instance for Morpheos voice (mini-game + failure screen)
   const legacyTts = useTts(LEGACY_VOICE.id);
   const [screen, setScreen] = useState<Screen>("home");
@@ -1801,6 +1828,10 @@ function App() {
               setShowVoicePicker(true);
             }}
             onTriggerMiniGame={() => setShowMiniGame(true)}
+            onShowAuth={() => setShowAuthModal(true)}
+            isSignedIn={isSignedIn}
+            authDisplayName={displayName}
+            onSignOut={signOut}
             tracksCompleted={progress.tracksCompleted()}
             tracksStarted={progress.tracksStarted()}
             play={play}
@@ -1878,6 +1909,10 @@ function App() {
           onClose={() => setShowVoicePicker(false)}
           play={play}
         />
+      )}
+
+      {showAuthModal && (
+        <AuthModal onClose={() => setShowAuthModal(false)} play={play} />
       )}
 
       {showMiniGame && (
