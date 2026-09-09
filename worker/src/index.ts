@@ -14,7 +14,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { sanitizeName } from "./profanity";
 import { generateTts } from "./tts";
-import { handleAskPoke, handleMcp } from "./poke";
+import { handleAskPoke } from "./poke";
 import { handlePiVerify } from "./pi";
 
 // ============================================================================
@@ -154,17 +154,6 @@ app.use(
     origin: (origin, c) => c.env.CORS_ORIGIN || origin,
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type"],
-    maxAge: 86400,
-  }),
-);
-
-// CORS for /mcp — allow Poke to connect from any origin
-app.use(
-  "/mcp",
-  cors({
-    origin: "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "X-Poke-Auth", "X-Poke-User-Id"],
     maxAge: 86400,
   }),
 );
@@ -486,31 +475,6 @@ app.post("/api/ask-poke", async (c) => {
 app.post("/api/pi/verify", async (c) => {
   return handlePiVerify(c.req.raw, c.env);
 });
-
-// ----------------------------------------------------------------------------
-// /mcp — MCP server (Poke agent integration)
-// Supports POST (JSON-RPC) and GET (endpoint discovery)
-// Handles both /mcp and /mcp/ URLs
-// ----------------------------------------------------------------------------
-const mcpHandler = async (c: any) => {
-  if (c.req.method === "GET") {
-    return c.json({
-      name: "know-your-world-mcp",
-      version: "1.0.0",
-      protocol: "jsonrpc-2.0",
-      transport: "https",
-      tools: [
-        "get_player_progress",
-        "get_missed_questions",
-        "generate_practice_set",
-      ],
-    });
-  }
-  return handleMcp(c.req.raw, c.env);
-};
-
-app.all("/mcp", mcpHandler);
-app.all("/mcp/", mcpHandler);
 
 // ----------------------------------------------------------------------------
 // 404 fallback
