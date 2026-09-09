@@ -195,7 +195,13 @@ app.post("/api/scores", async (c) => {
     c.req.header("cf-connecting-ip") ||
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
-  const scoreAllowed = checkRateLimit(clientIp, 5, 60_000, "scores");
+  const scoreAllowed = await checkRateLimit(
+    c.env.DB,
+    clientIp,
+    5,
+    60_000,
+    "scores",
+  );
   if (!scoreAllowed) {
     return c.json(
       { error: "Too many score submissions. Please wait a minute." },
@@ -396,15 +402,15 @@ app.get("/api/leaderboards", async (c) => {
 // Rate limiting: per-IP, configurable via TTS_RATE_LIMIT env var (default 20/min)
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
-// In-memory rate limiter for TTS — per-IP, sliding 60-second window.
-// Workers isolates persist across requests, so this works for rate limiting
-// within a single isolate. For multi-isolate precision we'd need D1 or KV,
-// but for a kids' game this is sufficient and far cheaper than D1 queries.
+// Hybrid rate limiter: in-memory (fast path) + D1 (cross-isolate enforcement)
+//
+// For 30-40 concurrent users, the in-memory check catches most abuse.
+// D1 check provides cross-isolate enforcement as a secondary guard.
+// This prevents a single IP from bypassing limits by hitting different isolates.
 // ----------------------------------------------------------------------------
-// Rate limit maps — keyed by namespace:ip for separate rate limits
 const rateLimitMaps = new Map<string, Map<string, number[]>>();
 
-function checkRateLimit(
+function checkRateLimitMemory(
   ip: string,
   limit: number,
   windowMs: number,
@@ -419,15 +425,13 @@ function checkRateLimit(
 
   const now = Date.now();
   const times = limitMap.get(key) ?? [];
-  // Filter to only timestamps within the window
   const recent = times.filter((t) => now - t < windowMs);
   if (recent.length >= limit) {
-    return false; // rate limited
+    return false;
   }
   recent.push(now);
   limitMap.set(key, recent);
-  // Periodic cleanup: if the map is getting large, prune old entries
-  if (limitMap.size > 1000) {
+  if (limitMap.size > 500) {
     for (const [k, vals] of limitMap) {
       const fresh = vals.filter((t) => now - t < windowMs);
       if (fresh.length === 0) {
@@ -436,6 +440,76 @@ function checkRateLimit(
         limitMap.set(k, fresh);
       }
     }
+  }
+  return true;
+}
+
+/**
+ * D1-backed rate limit check — cross-isolate enforcement.
+ * Uses a rate_limits table to track requests across all isolates.
+ * Only runs every Nth request (sampling) to avoid D1 overhead on every call.
+ */
+async function checkRateLimitD1(
+  db: D1Database,
+  ip: string,
+  limit: number,
+  windowMs: number,
+  namespace: string,
+): Promise<boolean> {
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = now - Math.floor(windowMs / 1000);
+
+  try {
+    // Insert this request
+    await db
+      .prepare(
+        `INSERT INTO rate_limits (namespace, ip, created_at) VALUES (?, ?, ?)`,
+      )
+      .bind(namespace, ip, now)
+      .run();
+
+    // Count recent requests from this IP
+    const result = await db
+      .prepare(
+        `SELECT COUNT(*) as count FROM rate_limits
+       WHERE namespace = ? AND ip = ? AND created_at > ?`,
+      )
+      .bind(namespace, ip, windowStart)
+      .first<{ count: number }>();
+
+    // Cleanup old entries periodically (1% chance per request)
+    if (Math.random() < 0.01) {
+      await db
+        .prepare(`DELETE FROM rate_limits WHERE created_at < ?`)
+        .bind(windowStart - 3600)
+        .run();
+    }
+
+    return (result?.count ?? 0) <= limit;
+  } catch {
+    // If D1 fails, fall back to in-memory only (fail open for availability)
+    return true;
+  }
+}
+
+/**
+ * Hybrid rate limit: check memory first (fast), then D1 (accurate).
+ */
+async function checkRateLimit(
+  db: D1Database,
+  ip: string,
+  limit: number,
+  windowMs: number,
+  namespace = "tts",
+): Promise<boolean> {
+  // Fast path: in-memory check
+  if (!checkRateLimitMemory(ip, limit, windowMs, namespace)) {
+    return false;
+  }
+  // Slow path: D1 cross-isolate check (sampling — only check D1 50% of the time
+  // to reduce overhead while still catching cross-isolate abuse)
+  if (Math.random() < 0.5) {
+    return await checkRateLimitD1(db, ip, limit, windowMs, namespace);
   }
   return true;
 }
@@ -480,7 +554,13 @@ app.post("/api/tts", async (c) => {
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown";
   const rateLimit = Number(c.env.TTS_RATE_LIMIT) || 20;
-  const allowed = checkRateLimit(clientIp, rateLimit, 60_000, "tts");
+  const allowed = await checkRateLimit(
+    c.env.DB,
+    clientIp,
+    rateLimit,
+    60_000,
+    "tts",
+  );
   if (!allowed) {
     return c.json(
       { error: "Too many audio requests. Please wait a minute and try again." },
