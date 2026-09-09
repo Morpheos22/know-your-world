@@ -885,10 +885,17 @@ function GameScreen({
 
   // BUGFIX: depend only on qIndex, not on `item` (which changes identity each render)
   useEffect(() => {
+    // Stop any playing TTS when question changes
+    tts.stop();
+
     setSelected(null);
     setDisabled(false);
     if (item?.type === "question" && item.data) {
-      setShuffledOpts(shuffle(item.data.opts));
+      const opts = shuffle(item.data.opts);
+      setShuffledOpts(opts);
+      // Pre-fetch the audio for this question in the background
+      // so when the player clicks listen, it plays instantly
+      tts.prefetchQuestion(item.data.q, opts);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.qIndex]);
