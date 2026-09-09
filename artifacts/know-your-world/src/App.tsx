@@ -1894,7 +1894,22 @@ function App() {
       <div className="app-bg" style={{ backgroundImage: bgGradient }} />
       <div className="app-container">
         <MuteButton muted={muted} onToggle={toggleMute} />
-        <PokeGuide voiceId={voiceId} />
+        <PokeGuide />
+        {/* Home button — visible on all non-home screens */}
+        {effectiveScreen !== "home" && (
+          <button
+            className="home-float-btn"
+            onClick={() => {
+              play("click");
+              stopAmbient();
+              setScreen("home");
+            }}
+            aria-label="Go home"
+            title="Home"
+          >
+            {"\uD83C\uDFE0"}
+          </button>
+        )}
         {effectiveScreen === "home" && (
           <HomeScreen
             playerName={playerName}

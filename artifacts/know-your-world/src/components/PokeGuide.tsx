@@ -1,12 +1,9 @@
 /**
- * PokeGuide — an AI assistant widget on the landing page.
+ * PokeGuide — "Amir" AI assistant widget on the landing page.
  *
  * Uses the Poke API (via Worker /api/ask-poke) to answer questions
  * and guide users through the platform. Responses are read aloud
- * using the TTS voice system.
- *
- * Appearance: floating chat bubble in bottom-right corner.
- * When opened: shows a chat panel with messages.
+ * using the TTS voice system with Amir's voice (Alisha — energetic Gen Z).
  */
 import { useState, useRef, useEffect } from "react";
 import { useTts } from "../hooks/useTts";
@@ -27,17 +24,17 @@ const SUGGESTIONS = [
   "How do voices work?",
 ];
 
-export function PokeGuide({ voiceId }: { voiceId: string }) {
+export function PokeGuide() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Hi! I'm your Know Your World guide. Ask me anything about the game!",
+      text: "Hey there! I'm Amir, your Know Your World guide! Ask me anything about the game — I'm here to help you explore!",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const tts = useTts(voiceId);
+  const tts = useTts("amir");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,7 +68,7 @@ export function PokeGuide({ voiceId }: { voiceId: string }) {
         data?.data?.response ??
         (typeof data?.data === "string"
           ? data.data
-          : "I'm not sure about that, but you can explore the game to find out!");
+          : "Great question! Explore the game to find out — it's packed with fun facts about our world and AI!");
 
       const assistantMessage: Message = {
         role: "assistant",
@@ -79,12 +76,12 @@ export function PokeGuide({ voiceId }: { voiceId: string }) {
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Read the response aloud using TTS
-      void tts.speak(responseText);
+      // Read the response aloud using Amir's voice
+      void tts.speak(responseText, "amir");
     } catch {
       const fallback: Message = {
         role: "assistant",
-        text: "I couldn't reach the guide service right now. Try exploring the game — it's fun!",
+        text: "Oops! I couldn't reach my brain right now. Try exploring the game — it's super fun!",
       };
       setMessages((prev) => [...prev, fallback]);
     }
@@ -100,7 +97,7 @@ export function PokeGuide({ voiceId }: { voiceId: string }) {
         onClick={() => {
           setOpen(!open);
         }}
-        aria-label="Open AI guide"
+        aria-label="Open Amir guide"
       >
         {open ? "\u2715" : "\uD83C\uDF1F"}
       </button>
@@ -109,7 +106,9 @@ export function PokeGuide({ voiceId }: { voiceId: string }) {
       {open && (
         <div className="poke-guide-panel">
           <div className="poke-guide-header">
-            <span className="poke-guide-title">{"\uD83C\uDF1F"} KYW Guide</span>
+            <span className="poke-guide-title">
+              {"\uD83C\uDF1F"} Amir · KYW Guide
+            </span>
             <button
               className="poke-guide-close"
               onClick={() => setOpen(false)}
@@ -130,7 +129,7 @@ export function PokeGuide({ voiceId }: { voiceId: string }) {
             ))}
             {loading && (
               <div className="poke-guide-message poke-guide-message-assistant">
-                {"\uD83D\uDCAC"} Thinking...
+                {"\uD83D\uDCAC"} Amir is thinking...
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -164,7 +163,7 @@ export function PokeGuide({ voiceId }: { voiceId: string }) {
                   void sendMessage(input);
                 }
               }}
-              placeholder="Ask me anything..."
+              placeholder="Ask Amir anything..."
               disabled={loading}
             />
             <button
