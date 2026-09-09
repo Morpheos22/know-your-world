@@ -1,18 +1,29 @@
 /**
- * Pi Network integration — payment SDK + verification.
+ * Pi Network integration — auth, payment SDK + verification.
  *
- * Flow:
- *   1. User clicks "Pay with Pi"
- *   2. Frontend calls Pi SDK to create a payment
+ * Pi Network color palette:
+ *   Primary: #6B2DFF (Pi purple)
+ *   Secondary: #FBC423 (Pi gold/yellow)
+ *   Dark: #1A1A2E
+ *   Light: #F0F0F5
+ *
+ * Auth flow:
+ *   1. User clicks "Continue with Pi"
+ *   2. Frontend loads Pi SDK from sdk.minepi.com
+ *   3. Calls Pi.authenticate() with scopes [username, payments]
+ *   4. Pi SDK opens Pi Browser auth flow
+ *   5. On success, user is authenticated with Pi username
+ *   6. Frontend sends Pi auth token to Worker for verification
+ *   7. Worker creates/updates user record
+ *
+ * Payment flow:
+ *   1. User selects plan + clicks "Pay with Pi"
+ *   2. Frontend calls Pi.createPayment() with amount in Pi
  *   3. User approves payment in Pi app
  *   4. Frontend sends payment to Worker for verification
- *   5. Worker verifies payment via Pi API
- *   6. On success, Worker updates user's plan/purchase in DB
+ *   5. Worker verifies via Pi API (api.minepi.com/v2)
+ *   6. Payment routed to wallet: GABT7EMPGNCQSZM22DIYC4FNKHUVJTXITUF6Y5HNIWPU4GA7BHT4GC5G
  */
-
-const PI_API_KEY =
-  (import.meta.env.VITE_PI_API_KEY as string | undefined) ??
-  "muzufcwftblghva94vckonhnkqkrmvmbbigtacwg1uwgismjcdnhjjg3c0scq3hl";
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) ??
@@ -20,6 +31,16 @@ const API_BASE =
 
 // Pi SDK script URL
 const PI_SDK_URL = "https://sdk.minepi.com/pi-sdk.js";
+
+// Pi Network color palette
+export const PI_COLORS = {
+  primary: "#6B2DFF",
+  secondary: "#FBC423",
+  dark: "#1A1A2E",
+  light: "#F0F0F5",
+  white: "#FFFFFF",
+  gradient: "linear-gradient(135deg, #6B2DFF 0%, #8B4DFF 100%)",
+};
 
 /** Load the Pi SDK script */
 export function loadPiSdk(): Promise<void> {
@@ -44,8 +65,54 @@ export async function initPiSdk(): Promise<void> {
   }
   window.Pi.init({
     version: 2,
-    sandbox: false, // Set to true for testing
+    sandbox: false,
   });
+}
+
+/** Authenticate with Pi Network — returns Pi user info */
+export async function authenticateWithPi(): Promise<{
+  ok: boolean;
+  user?: { uid: string; username: string };
+  accessToken?: string;
+  error?: string;
+}> {
+  try {
+    await initPiSdk();
+    if (!window.Pi) {
+      return { ok: false, error: "Pi SDK failed to load" };
+    }
+
+    // Authenticate with Pi — this opens the Pi Browser auth flow
+    const authResult = await window.Pi.authenticate(
+      ["username", "payments"],
+      (payment: unknown) => {
+        // Handle incomplete payment if found
+        console.log("Incomplete payment found:", payment);
+      },
+    );
+
+    // Get the access token
+    const accessToken = window.Pi.getAccessToken?.() ?? null;
+
+    if (authResult) {
+      const user = authResult as { user?: { uid: string; username: string } };
+      return {
+        ok: true,
+        user: {
+          uid: user.user?.uid ?? "unknown",
+          username: user.user?.username ?? "pi-user",
+        },
+        accessToken: accessToken ?? undefined,
+      };
+    }
+
+    return { ok: false, error: "Pi authentication failed" };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Pi auth failed",
+    };
+  }
 }
 
 /** Create a Pi payment for pro access */
@@ -108,6 +175,7 @@ declare global {
         scopes: string[],
         onIncompletePaymentFound: (payment: unknown) => void,
       ) => Promise<unknown>;
+      getAccessToken?: () => string | null;
     };
   }
 }

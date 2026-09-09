@@ -2224,14 +2224,21 @@ body {
   margin-top: 8px;
   font-family: "Poppins", sans-serif;
 }
+/* Pi Network color palette: #6B2DFF (purple), #FBC423 (gold) */
 .auth-pi {
-  background: #fbc423;
-  color: #2f2f2f;
-  border-color: #fbc423;
+  background: linear-gradient(135deg, #6b2dff 0%, #8b4dff 100%);
+  color: #ffffff;
+  border-color: #6b2dff;
   font-weight: 600;
 }
 .auth-pi:hover:not(:disabled) {
-  background: #e6b320;
+  background: linear-gradient(135deg, #5b1def 0%, #7b3def 100%);
+}
+.pi-logo {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: #fbc423;
+  font-family: "Fredoka", sans-serif;
 }
 /* ============================================================================
    ONBOARDING MODAL

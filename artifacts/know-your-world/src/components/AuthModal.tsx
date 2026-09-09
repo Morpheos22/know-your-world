@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth, setTurnstileToken } from "../hooks/useAuth";
 import { TURNSTILE_SITEKEY } from "../lib/supabase";
-import { initPiSdk, createPiPayment } from "../lib/pi";
+import { authenticateWithPi, PI_COLORS } from "../lib/pi";
 
 interface AuthModalProps {
   onClose: () => void;
@@ -41,6 +41,7 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
   const [verificationMessage, setVerificationMessage] = useState<string | null>(
     null,
   );
@@ -188,23 +189,22 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
                 onClick={async () => {
                   play("click");
                   setLoading(true);
-                  try {
-                    await initPiSdk();
-                    // Pi authenticate
-                    if (window.Pi) {
-                      await window.Pi.authenticate(
-                        ["username", "payments"],
-                        () => {},
-                      );
-                    }
-                  } catch {
-                    // Pi SDK might not be available in all environments
+                  setLocalError(null);
+                  const result = await authenticateWithPi();
+                  if (result.ok && result.user) {
+                    onClose();
+                  } else {
+                    setLocalError(
+                      result.error ??
+                        "Pi authentication failed. Make sure you have the Pi Browser installed.",
+                    );
                   }
                   setLoading(false);
                 }}
                 disabled={loading}
               >
-                {"\uD83D\uDFE1"} Continue with Pi
+                <span className="pi-logo">π</span>
+                Continue with Pi
               </button>
             </div>
 
@@ -358,7 +358,9 @@ export function AuthModal({ onClose, play }: AuthModalProps) {
           </form>
         )}
 
-        {authError && <div className="auth-error">{authError}</div>}
+        {(authError || localError) && (
+          <div className="auth-error">{authError || localError}</div>
+        )}
       </div>
     </div>
   );

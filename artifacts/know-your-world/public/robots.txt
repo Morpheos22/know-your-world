@@ -1,0 +1,8 @@
+# robots.txt — Know Your World
+# Block all crawlers during development
+User-agent: *
+Disallow: /
+
+# Allow health check
+User-agent: *
+Allow: /api/healthz
