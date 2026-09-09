@@ -4,24 +4,21 @@
  * POST /api/pi/verify
  * Body: { paymentId, amount, memo, metadata, plan }
  *
- * Verifies the payment with the Pi API, routes to the wallet address,
- * and returns whether it's valid.
- *
- * Pi pricing:
- *   Individual: 750 π
- *   Startup: 1,500 π
- *   Organization: 3,000 π
- *   Voice (each): 200 π
+ * Security:
+ *   - Replay attack prevention: checks used_payments table for duplicate paymentId
+ *   - Amount validation against plan pricing
+ *   - Pi API verification (transaction_verified, not cancelled)
+ *   - Routes payment to wallet address
  */
 
 interface Env {
+  DB: D1Database;
   PI_API_KEY: string;
   PI_WALLET_ADDRESS: string;
 }
 
 const PI_API_BASE = "https://api.minepi.com/v2";
 
-// Pi pricing in Pi coins
 const PI_PRICING: Record<string, number> = {
   individual: 750,
   startup: 1500,
@@ -29,11 +26,23 @@ const PI_PRICING: Record<string, number> = {
   voice: 200,
 };
 
+// Max request body size (2KB)
+const MAX_BODY_SIZE = 2048;
+
 export async function handlePiVerify(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const body = (await request.json()) as {
+  // Body size limit (L5)
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BODY_SIZE) {
+    return Response.json(
+      { verified: false, error: "Request body too large" },
+      { status: 413 },
+    );
+  }
+
+  let body: {
     paymentId?: string;
     amount?: number;
     memo?: string;
@@ -41,11 +50,27 @@ export async function handlePiVerify(
     plan?: string;
   };
 
-  const { paymentId, amount, memo, plan } = body;
-
-  if (!paymentId || !amount) {
+  try {
+    body = await request.json();
+  } catch {
     return Response.json(
-      { verified: false, error: "paymentId and amount are required" },
+      { verified: false, error: "Invalid JSON body" },
+      { status: 400 },
+    );
+  }
+
+  const { paymentId, amount, plan } = body;
+
+  // Input validation (M4)
+  if (!paymentId || typeof paymentId !== "string" || paymentId.length > 200) {
+    return Response.json(
+      { verified: false, error: "Valid paymentId is required" },
+      { status: 400 },
+    );
+  }
+  if (!amount || typeof amount !== "number" || amount <= 0 || amount > 100000) {
+    return Response.json(
+      { verified: false, error: "Valid amount is required" },
       { status: 400 },
     );
   }
@@ -59,6 +84,24 @@ export async function handlePiVerify(
       },
       { status: 400 },
     );
+  }
+
+  // C2 FIX: Check if paymentId was already used (replay attack prevention)
+  try {
+    const existing = await env.DB.prepare(
+      `SELECT payment_id FROM used_payments WHERE payment_id = ?`,
+    )
+      .bind(paymentId)
+      .first<{ payment_id: string }>();
+
+    if (existing) {
+      return Response.json(
+        { verified: false, error: "Payment already verified and used" },
+        { status: 409 },
+      );
+    }
+  } catch {
+    // If D1 check fails, continue — the Pi API verification is the primary check
   }
 
   try {
@@ -87,10 +130,6 @@ export async function handlePiVerify(
         developer_completed: boolean;
         cancelled: boolean;
         user_cancelled: boolean;
-      };
-      transaction: {
-        txid: string;
-        to_address: string;
       };
     };
 
@@ -121,6 +160,17 @@ export async function handlePiVerify(
         },
         body: JSON.stringify({ txid: paymentId }),
       });
+
+      // C2 FIX: Mark payment as used (replay attack prevention)
+      try {
+        await env.DB.prepare(
+          `INSERT OR IGNORE INTO used_payments (payment_id, plan, amount) VALUES (?, ?, ?)`,
+        )
+          .bind(paymentId, plan ?? "unknown", amount)
+          .run();
+      } catch {
+        // Non-fatal — the Pi API won't allow re-approval anyway
+      }
 
       return Response.json({
         verified: true,

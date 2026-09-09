@@ -96,8 +96,15 @@ export async function generateTts(
   text: string,
   voiceId: string = "jessica",
 ): Promise<TtsResult> {
-  // Resolve the ElevenLabs voice ID from our voice ID
-  const elevenLabsVoiceId = VOICE_MAP[voiceId] ?? DEFAULT_ELEVENLABS_VOICE;
+  // M1 FIX: Validate voiceId against VOICE_MAP — reject unknown IDs
+  // instead of defaulting to Jessica (prevents cache pollution)
+  if (!VOICE_MAP[voiceId]) {
+    throw new Error(
+      `Unknown voiceId: ${voiceId}. Valid IDs: ${Object.keys(VOICE_MAP).join(", ")}`,
+    );
+  }
+
+  const elevenLabsVoiceId = VOICE_MAP[voiceId];
 
   // Cache key includes voice ID so different voices are cached separately
   const cacheKey = `${voiceId}:${text}`;

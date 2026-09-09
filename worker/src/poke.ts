@@ -9,7 +9,6 @@
 interface Env {
   DB: D1Database;
   POKE_API_KEY: string;
-  MCP_SHARED_SECRET: string;
 }
 
 const POKE_ENDPOINT = "https://view-link.cx/niD7mgibuI1";
@@ -32,9 +31,23 @@ export async function handleAskPoke(
 
   const { question, selectedAnswer, correctAnswer, category, continent } = body;
 
-  if (!question || !correctAnswer) {
+  // M4 FIX: Input length validation
+  const MAX_FIELD_LEN = 500;
+  if (!question || question.length > MAX_FIELD_LEN) {
     return Response.json(
-      { error: "question and correctAnswer are required" },
+      { error: "question is required and must be 500 chars or less" },
+      { status: 400 },
+    );
+  }
+  if (correctAnswer && correctAnswer.length > MAX_FIELD_LEN) {
+    return Response.json(
+      { error: "correctAnswer must be 500 chars or less" },
+      { status: 400 },
+    );
+  }
+  if (selectedAnswer && selectedAnswer.length > MAX_FIELD_LEN) {
+    return Response.json(
+      { error: "selectedAnswer must be 500 chars or less" },
       { status: 400 },
     );
   }
@@ -83,158 +96,4 @@ export async function handleAskPoke(
       { status: 502 },
     );
   }
-}
-
-// ============================================================================
-// POST /mcp — JSON-RPC 2.0 MCP server for Poke
-// ============================================================================
-
-export async function handleMcp(request: Request, env: Env): Promise<Response> {
-  // GET requests are handled by the Hono route handler (returns endpoint info)
-  // Only process POST requests as JSON-RPC
-  if (request.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
-  }
-
-  // Validate shared secret
-  const authHeader = request.headers.get("x-poke-auth");
-  if (authHeader !== env.MCP_SHARED_SECRET) {
-    return jsonRpcError(null, -32001, "Unauthorized: invalid shared secret");
-  }
-
-  const pokeUserId = request.headers.get("x-poke-user-id") ?? "anonymous";
-  const body = (await request.json()) as {
-    id?: string | number | null;
-    method?: string;
-    params?: any;
-  };
-  const { id, method, params } = body;
-
-  if (method === "initialize") {
-    return jsonRpcResponse(id, {
-      protocolVersion: "2024-11-05",
-      capabilities: { tools: {} },
-      serverInfo: { name: "know-your-world-mcp", version: "1.0.0" },
-    });
-  }
-
-  if (method === "tools/list") {
-    return jsonRpcResponse(id, {
-      tools: [
-        {
-          name: "get_player_progress",
-          description:
-            "Get quiz accuracy, current streaks, and completed tracks for the user",
-          inputSchema: {
-            type: "object",
-            properties: {
-              continent: {
-                type: "string",
-                description: "Filter by continent (e.g. Africa, Europe)",
-              },
-            },
-          },
-        },
-        {
-          name: "get_missed_questions",
-          description: "Fetch recent incorrect questions to analyze weak spots",
-          inputSchema: {
-            type: "object",
-            properties: {
-              limit: {
-                type: "number",
-                description: "Max number of mistakes to return (default 5)",
-              },
-            },
-          },
-        },
-        {
-          name: "generate_practice_set",
-          description: "Generate targeted practice questions based on category",
-          inputSchema: {
-            type: "object",
-            properties: {
-              category: {
-                type: "string",
-                enum: ["capitals", "flags", "currencies", "facts"],
-              },
-              count: { type: "number", description: "Number of questions" },
-            },
-            required: ["category"],
-          },
-        },
-      ],
-    });
-  }
-
-  if (method === "tools/call") {
-    const { name, arguments: args } = params;
-
-    if (name === "get_player_progress") {
-      const stats = await env.DB.prepare(
-        "SELECT continent, category, score, total FROM scores WHERE name_key = ? ORDER BY created_at DESC LIMIT 20",
-      )
-        .bind(pokeUserId.toLowerCase())
-        .all();
-      return jsonRpcResponse(id, {
-        content: [{ type: "text", text: JSON.stringify(stats.results) }],
-      });
-    }
-
-    if (name === "get_missed_questions") {
-      const limit = args?.limit || 5;
-      const mistakes = await env.DB.prepare(
-        "SELECT question, selected_answer, correct_answer, category, continent, created_at FROM mistakes WHERE name = ? ORDER BY created_at DESC LIMIT ?",
-      )
-        .bind(pokeUserId, limit)
-        .all();
-      return jsonRpcResponse(id, {
-        content: [{ type: "text", text: JSON.stringify(mistakes.results) }],
-      });
-    }
-
-    if (name === "generate_practice_set") {
-      // For now, return a placeholder — Phase 5 will add question bank to D1
-      return jsonRpcResponse(id, {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              message: "Practice set generation coming in Phase 5",
-              category: args?.category,
-              count: args?.count || 5,
-            }),
-          },
-        ],
-      });
-    }
-
-    return jsonRpcError(id, -32601, "Tool not found");
-  }
-
-  return jsonRpcError(id, -32600, "Invalid Request");
-}
-
-function jsonRpcResponse(
-  id: string | number | null | undefined,
-  result: any,
-): Response {
-  return new Response(
-    JSON.stringify({ jsonrpc: "2.0", id: id ?? null, result }),
-    { headers: { "Content-Type": "application/json" } },
-  );
-}
-
-function jsonRpcError(
-  id: string | number | null | undefined,
-  code: number,
-  message: string,
-): Response {
-  return new Response(
-    JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }),
-    {
-      headers: { "Content-Type": "application/json" },
-      status: code === -32001 ? 401 : 400,
-    },
-  );
 }

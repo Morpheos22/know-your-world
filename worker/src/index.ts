@@ -32,7 +32,6 @@ interface Env {
   TTS_CACHE_TTL: string;
   TTS_MAX_TEXT_LENGTH: string;
   POKE_API_KEY: string;
-  MCP_SHARED_SECRET: string;
   SUPABASE_SECRET_KEY: string;
   STRIPE_SECRET_KEY: string;
   TURNSTILE_SECRET: string;
@@ -162,16 +161,28 @@ function validateScorePayload(
 
 const app = new Hono<{ Bindings: Env }>();
 
-// CORS — locked to the frontend origin set in wrangler.toml
+// H4 FIX: CORS — hard default to frontend origin, NEVER reflect requester origin
+const ALLOWED_ORIGIN = "https://know-your-world.vercel.app";
 app.use(
   "/api/*",
   cors({
-    origin: (origin, c) => c.env.CORS_ORIGIN || origin,
+    origin: (_origin, c) => c.env.CORS_ORIGIN || ALLOWED_ORIGIN,
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type"],
     maxAge: 86400,
   }),
 );
+
+// L4 FIX: HSTS header on all Worker responses
+app.use("*", async (c, next) => {
+  await next();
+  c.header(
+    "Strict-Transport-Security",
+    "max-age=63072000; includeSubDomains; preload",
+  );
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+});
 
 // ----------------------------------------------------------------------------
 // GET /api/healthz
@@ -190,6 +201,12 @@ app.get("/api/healthz", (c) => {
 // Returns: { id, rank, totalEntries, isHighScore, personalBest }
 // ----------------------------------------------------------------------------
 app.post("/api/scores", async (c) => {
+  // L5 FIX: Body size limit (scores payload should be < 2KB)
+  const scoreContentLength = Number(c.req.header("content-length") ?? 0);
+  if (scoreContentLength > 2048) {
+    return c.json({ error: "Request body too large" }, 413);
+  }
+
   // Rate limiting: 5 score submissions per IP per minute
   const clientIp =
     c.req.header("cf-connecting-ip") ||
@@ -585,8 +602,34 @@ app.post("/api/tts", async (c) => {
 
 // ----------------------------------------------------------------------------
 // POST /api/ask-poke — tutor endpoint (Poke agent integration)
+// H3 FIX: Rate limited (10/min per IP), M4 FIX: Input length validation
 // ----------------------------------------------------------------------------
 app.post("/api/ask-poke", async (c) => {
+  // H3 FIX: Rate limiting — 10 requests per IP per minute
+  const pokeIp =
+    c.req.header("cf-connecting-ip") ||
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+  const pokeAllowed = await checkRateLimit(
+    c.env.DB,
+    pokeIp,
+    10,
+    60_000,
+    "poke",
+  );
+  if (!pokeAllowed) {
+    return c.json(
+      { error: "Too many requests to the guide. Please wait a minute." },
+      429,
+    );
+  }
+
+  // L5 FIX: Body size limit (4KB for poke — questions can be longer)
+  const pokeContentLength = Number(c.req.header("content-length") ?? 0);
+  if (pokeContentLength > 4096) {
+    return c.json({ error: "Request body too large" }, 413);
+  }
+
   return handleAskPoke(c.req.raw, c.env);
 });
 
