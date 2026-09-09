@@ -22,6 +22,9 @@ const CATEGORY_TO_API: Record<Category, string> = {
   Presidents: "presidents",
   Flags: "flags",
   Currencies: "currencies",
+  "Generative AI": "gen-ai",
+  Copilots: "copilots",
+  "Software Agents": "agents",
 };
 
 // ---- Frontend Continent names already match backend (lowercased) ----

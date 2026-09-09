@@ -12,8 +12,15 @@ export interface QueueItem {
   text?: string;
 }
 
-export type Continent = "Africa" | "Asia" | "Europe" | "Americas";
-export type Category = "Countries" | "Presidents" | "Flags" | "Currencies";
+export type Continent = "Africa" | "Asia" | "Europe" | "Americas" | "AI World";
+export type Category =
+  | "Countries"
+  | "Presidents"
+  | "Flags"
+  | "Currencies"
+  | "Generative AI"
+  | "Copilots"
+  | "Software Agents";
 
 export interface GameState {
   continent: Continent | null;

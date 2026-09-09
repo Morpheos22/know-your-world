@@ -68,8 +68,22 @@ interface ScoreRow {
 // Validation
 // ============================================================================
 
-const CONTINENTS = new Set(["africa", "asia", "europe", "americas"]);
-const CATEGORIES = new Set(["capitals", "presidents", "flags", "currencies"]);
+const CONTINENTS = new Set([
+  "africa",
+  "asia",
+  "europe",
+  "americas",
+  "ai world",
+]);
+const CATEGORIES = new Set([
+  "capitals",
+  "presidents",
+  "flags",
+  "currencies",
+  "gen-ai",
+  "copilots",
+  "agents",
+]);
 const LEVELS = new Set(["easy", "medium", "hard"]);
 
 function validateTrack(
