@@ -1692,3 +1692,217 @@ body {
     gap: 8px;
   }
 }
+
+/* ============================================================================
+   PHASE 3: Globe Mini-Game
+   ============================================================================ */
+.globe-minigame-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* Hold target (before burst) */
+.globe-hold-target {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  cursor: grab;
+  user-select: none;
+}
+.globe-hold-target:active {
+  cursor: grabbing;
+}
+.globe-hold-orb {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    #4da6ff 0%,
+    #2980d9 30%,
+    #1a5490 60%,
+    #0d2e52 100%
+  );
+  box-shadow:
+    inset -20px -20px 40px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(77, 166, 255, 0.4);
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.1s ease;
+}
+.globe-hold-text {
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: "Fredoka", sans-serif;
+  font-size: 0.9rem;
+}
+.globe-hold-bar {
+  width: 120px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  margin: 8px auto 0;
+  overflow: hidden;
+}
+.globe-hold-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4da6ff, #81b29a);
+  border-radius: 3px;
+  transition: width 0.05s linear;
+}
+
+/* Swelling animation */
+.globe-swelling {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.globe-swell-anim {
+  animation: globe-swell 0.8s ease-out forwards;
+}
+@keyframes globe-swell {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(2.5);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* Tiny globes (during play) */
+.globe-tiny {
+  position: absolute;
+  border-radius: 50%;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  z-index: 210;
+  transition: filter 0.3s ease;
+}
+.globe-tiny:active {
+  cursor: grabbing;
+}
+.globe-tiny-orb {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    #4da6ff 0%,
+    #2980d9 30%,
+    #1a5490 60%,
+    #0d2e52 100%
+  );
+  box-shadow:
+    inset -8px -8px 16px rgba(0, 0, 0, 0.5),
+    0 0 12px rgba(77, 166, 255, 0.3);
+  overflow: hidden;
+  position: relative;
+}
+.globe-tiny-selected .globe-tiny-orb {
+  box-shadow:
+    inset -8px -8px 16px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(255, 215, 0, 0.6);
+}
+.globe-tiny-returning {
+  filter: brightness(1.3) saturate(1.5);
+  animation: globe-tiny-glow 0.5s ease-in-out infinite alternate;
+}
+@keyframes globe-tiny-glow {
+  0% {
+    filter: brightness(1.3) saturate(1.5) drop-shadow(0 0 5px #4da6ff);
+  }
+  100% {
+    filter: brightness(1.6) saturate(2) drop-shadow(0 0 15px #81b29a);
+  }
+}
+.globe-tiny-returned .globe-tiny-orb {
+  filter: brightness(1.5) saturate(2);
+  box-shadow:
+    inset -8px -8px 16px rgba(0, 0, 0, 0.5),
+    0 0 25px rgba(129, 178, 154, 0.8);
+}
+.globe-tiny-hits {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  background: var(--error);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: "Fredoka", sans-serif;
+}
+
+/* Mini-game UI elements */
+.globe-minigame-hint {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  font-family: "Poppins", sans-serif;
+  text-align: center;
+  max-width: 300px;
+}
+.globe-minigame-complete {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #81b29a;
+  font-size: 1.5rem;
+  font-family: "Fredoka", sans-serif;
+  font-weight: 700;
+}
+.globe-minigame-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 220;
+}
+.globe-minigame-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 380px) {
+  .globe-hold-orb {
+    width: 100px;
+    height: 100px;
+  }
+  .globe-hold-bar {
+    width: 100px;
+  }
+}

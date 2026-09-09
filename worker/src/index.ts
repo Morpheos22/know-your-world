@@ -14,6 +14,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { sanitizeName } from "./profanity";
 import { generateTts } from "./tts";
+import { handleAskPoke, handleMcp } from "./poke";
 
 // ============================================================================
 // Types
@@ -29,6 +30,10 @@ interface Env {
   TTS_RATE_LIMIT: string;
   TTS_CACHE_TTL: string;
   TTS_MAX_TEXT_LENGTH: string;
+  POKE_API_KEY: string;
+  MCP_SHARED_SECRET: string;
+  SUPABASE_SECRET_KEY: string;
+  STRIPE_SECRET_KEY: string;
 }
 
 interface ScoreSubmission {
@@ -452,6 +457,20 @@ app.post("/api/tts", async (c) => {
     console.error("TTS generation failed:", err);
     return c.json({ error: "Audio generation failed. Please try again." }, 502);
   }
+});
+
+// ----------------------------------------------------------------------------
+// POST /api/ask-poke — tutor endpoint (Poke agent integration)
+// ----------------------------------------------------------------------------
+app.post("/api/ask-poke", async (c) => {
+  return handleAskPoke(c.req.raw, c.env);
+});
+
+// ----------------------------------------------------------------------------
+// POST /mcp — MCP server (Poke agent integration)
+// ----------------------------------------------------------------------------
+app.post("/mcp", async (c) => {
+  return handleMcp(c.req.raw, c.env);
 });
 
 // ----------------------------------------------------------------------------
